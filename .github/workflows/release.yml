@@ -32,12 +32,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           go build -ldflags="-s -w" -o oled-${{ matrix.goos }}-${{ matrix.goarch }} main.go
+          sha256sum oled-${{ matrix.goos }}-${{ matrix.goarch }} > oled-${{ matrix.goos }}-${{ matrix.goarch }}.sha256
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: oled-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: oled-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            oled-${{ matrix.goos }}-${{ matrix.goarch }}
+            oled-${{ matrix.goos }}-${{ matrix.goarch }}.sha256
 
   release:
     needs: build
@@ -54,5 +57,7 @@ jobs:
         with:
           files: |
             oled-linux-arm64/oled-linux-arm64
+            oled-linux-arm64/oled-linux-arm64.sha256
             oled-linux-amd64/oled-linux-amd64
+            oled-linux-amd64/oled-linux-amd64.sha256
           generate_release_notes: true
