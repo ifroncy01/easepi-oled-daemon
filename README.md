@@ -28,7 +28,7 @@ CGO_ENABLED=0 GOARCH=arm64 GOOS=linux go build -ldflags="-s -w" -o oled main.go
 ```bash
 # Download prebuilt binary from GitHub Releases
 sudo curl -L -o /usr/local/oled/oled \
-  https://github.com/ifroncy/easepi-oled-daemon/releases/latest/download/oled-linux-arm64
+  https://github.com/ifroncy01/easepi-oled-daemon/releases/latest/download/oled-linux-arm64
 sudo chmod +x /usr/local/oled/oled
 ```
 
