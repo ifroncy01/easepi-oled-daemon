@@ -481,14 +481,7 @@ func main() {
 		defer face11.Close()
 	}
 
-	testImg := image.NewGray(image.Rect(0, 0, WIDTH, HEIGHT))
-	w := textWidth(face12, "EasePi A2 Auto")
-	drawText(testImg, face12, "EasePi A2 Auto", (WIDTH-w)/2, 16)
-	w = textWidth(face12, "Dynamic Switch")
-	drawText(testImg, face12, "Dynamic Switch", (WIDTH-w)/2, 32)
-	oled.SendImage(testImg)
-	time.Sleep(2 * time.Second)
-	oled.Clear()
+	showBrandAnimation(oled, face11, face12, face14)
 
 	netmon := newNetMon()
 	cachedIP := getIP()
@@ -710,4 +703,53 @@ func parseSpeedKbps(s string) float64 {
 		return val / 1024
 	}
 	return 0
+}
+
+func showBrandAnimation(oled *SSD1306, face11, face12, face14 font.Face) {
+	brand := "LinkEase"
+	
+	steps := []struct {
+		face font.Face
+		y    int
+		sleep time.Duration
+	}{}
+
+	if face11 != nil {
+		steps = append(steps, struct {
+			face font.Face
+			y    int
+			sleep time.Duration
+		}{face11, (HEIGHT + (11 - textDescent(face11))) / 2 + 4, 150 * time.Millisecond})
+	}
+	
+	if face12 != nil {
+		steps = append(steps, struct {
+			face font.Face
+			y    int
+			sleep time.Duration
+		}{face12, (HEIGHT + (12 - textDescent(face12))) / 2 + 4, 150 * time.Millisecond})
+	}
+	
+	if face14 != nil {
+		steps = append(steps, struct {
+			face font.Face
+			y    int
+			sleep time.Duration
+		}{face14, (HEIGHT + (14 - textDescent(face14))) / 2 + 4, 150 * time.Millisecond})
+		steps = append(steps, struct {
+			face font.Face
+			y    int
+			sleep time.Duration
+		}{face14, (HEIGHT + (14 - textDescent(face14))) / 2 + 4, 2000 * time.Millisecond})
+	}
+
+	for _, step := range steps {
+		img := image.NewGray(image.Rect(0, 0, WIDTH, HEIGHT))
+		w := textWidth(step.face, brand)
+		drawText(img, step.face, brand, (WIDTH-w)/2, step.y)
+		oled.SendImage(img)
+		time.Sleep(step.sleep)
+	}
+
+	oled.Clear()
 }
