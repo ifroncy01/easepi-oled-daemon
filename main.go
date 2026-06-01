@@ -707,7 +707,7 @@ func parseSpeedKbps(s string) float64 {
 
 func showBrandAnimation(oled *SSD1306, face11, face12, face14 font.Face) {
 	brand := "LinkEase"
-	
+
 	steps := []struct {
 		face font.Face
 		y    int
@@ -721,7 +721,7 @@ func showBrandAnimation(oled *SSD1306, face11, face12, face14 font.Face) {
 			sleep time.Duration
 		}{face11, (HEIGHT + (11 - textDescent(face11))) / 2 + 4, 150 * time.Millisecond})
 	}
-	
+
 	if face12 != nil {
 		steps = append(steps, struct {
 			face font.Face
@@ -729,18 +729,31 @@ func showBrandAnimation(oled *SSD1306, face11, face12, face14 font.Face) {
 			sleep time.Duration
 		}{face12, (HEIGHT + (12 - textDescent(face12))) / 2 + 4, 150 * time.Millisecond})
 	}
-	
+
 	if face14 != nil {
 		steps = append(steps, struct {
 			face font.Face
 			y    int
 			sleep time.Duration
 		}{face14, (HEIGHT + (14 - textDescent(face14))) / 2 + 4, 150 * time.Millisecond})
+	}
+
+	// 动态加载 16px 字体用于最后停留
+	face16 := loadFontFace(16.0)
+
+	if face14 != nil && face16 != nil {
 		steps = append(steps, struct {
 			face font.Face
 			y    int
 			sleep time.Duration
-		}{face14, (HEIGHT + (14 - textDescent(face14))) / 2 + 4, 2000 * time.Millisecond})
+		}{face16, (HEIGHT + (16 - textDescent(face16))) / 2 + 4, 3000 * time.Millisecond})
+	} else if face14 != nil {
+		// 回退到 14px
+		steps = append(steps, struct {
+			face font.Face
+			y    int
+			sleep time.Duration
+		}{face14, (HEIGHT + (14 - textDescent(face14))) / 2 + 4, 3000 * time.Millisecond})
 	}
 
 	for _, step := range steps {
@@ -752,4 +765,9 @@ func showBrandAnimation(oled *SSD1306, face11, face12, face14 font.Face) {
 	}
 
 	oled.Clear()
+
+	// 清理动态加载的字体
+	if fc, ok := face16.(interface{ Close() error }); ok {
+		fc.Close()
+	}
 }
