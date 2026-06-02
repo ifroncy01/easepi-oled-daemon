@@ -423,16 +423,10 @@ func main() {
 	flag.BoolVar(silent, "silent", false, "silent mode")
 	flag.Parse()
 
-	os.MkdirAll(LOG_DIR, 0755)
 	var writer io.Writer = os.Stdout
-	logF, err := os.OpenFile(LOG_DIR+"/oled.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
 	if *silent {
-		writer = logF
-	} else {
-		writer = io.MultiWriter(os.Stdout, logF)
+		// 静默模式，丢弃所有输出
+		writer = io.Discard
 	}
 	logger = log.New(writer, "", log.LstdFlags)
 
