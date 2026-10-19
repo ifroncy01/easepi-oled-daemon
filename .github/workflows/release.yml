@@ -39,6 +39,7 @@ jobs:
       - name: Build .deb package
         env:
           VERSION: ${{ github.ref_name }}
+          OUT: ${{ github.workspace }}
         run: |
           chmod +x packaging/build-deb.sh
           packaging/build-deb.sh ${{ matrix.goarch }}
@@ -50,7 +51,7 @@ jobs:
           path: |
             oled-linux-${{ matrix.goarch }}
             oled-linux-${{ matrix.goarch }}.sha256
-            dist/*.deb
+            *.deb
 
   release:
     needs: build
