@@ -1,0 +1,13 @@
+#!/bin/sh
+# Post-removal script for easepi-oled-daemon.
+set -e
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+fi
+
+if [ "$1" = "purge" ]; then
+    rm -rf /usr/local/oled
+fi
+
+exit 0

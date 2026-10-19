@@ -1,0 +1,14 @@
+Package: easepi-oled-daemon
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Maintainer: ifroncy <ifroncy01@users.noreply.github.com>
+Depends: i2c-tools, fonts-dejavu-core
+Installed-Size: @SIZE@
+Homepage: https://github.com/ifroncy01/easepi-oled-daemon
+Description: SSD1306 OLED display daemon for EasePi-A2 (RK3568)
+ Displays system status (IP, CPU usage, temperature and network speed) on a
+ 128x32 I2C OLED panel (SSD1306 on i2c-3, address 0x3C). The daemon switches
+ automatically between 1-line, 2-line and 3-line layouts according to system
+ load, and is managed by the oled.service systemd unit.

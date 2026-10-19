@@ -25,11 +25,31 @@ CGO_ENABLED=0 GOARCH=arm64 GOOS=linux go build -ldflags="-s -w" -o oled main.go
 
 ## Install
 
+### One-line online install
+
 ```bash
-# Download prebuilt binary from GitHub Releases
-sudo curl -L -o /usr/local/oled/oled \
-  https://github.com/ifroncy01/easepi-oled-daemon/releases/latest/download/oled-linux-arm64
-sudo chmod +x /usr/local/oled/oled
+curl -fsSL https://raw.githubusercontent.com/ifroncy01/easepi-oled-daemon/main/install.sh | sudo bash
+```
+
+The script detects the architecture, installs dependencies (`i2c-tools`,
+`fonts-dejavu-core`), downloads the matching release artifact, installs it and
+enables `oled.service`. It pins a version with `sudo OLED_VERSION=1.3.0 bash install.sh`.
+
+### Debian package
+
+```bash
+# Download and install the .deb from GitHub Releases (arm64 / amd64)
+sudo apt-get install ./easepi-oled-daemon_1.3.0_arm64.deb
+```
+
+The package installs the daemon to `/usr/local/oled/oled`, ships the
+`oled.service` unit and enables it in `postinst`.
+
+### Build the .deb locally
+
+```bash
+packaging/build-deb.sh all        # arm64 + amd64, output in dist/
+packaging/build-deb.sh arm64      # single architecture
 ```
 
 ## Usage
@@ -38,6 +58,7 @@ sudo chmod +x /usr/local/oled/oled
 # Run in foreground
 sudo /usr/local/oled/oled
 
-# Install as systemd service (see companion systemd unit in Armbian build)
-sudo systemctl enable oled.service --now
+# Manage the installed service
+sudo systemctl status oled.service
+sudo systemctl restart oled.service
 ```

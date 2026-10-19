@@ -1,0 +1,12 @@
+#!/bin/sh
+# Post-installation script for easepi-oled-daemon.
+set -e
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+    systemctl enable oled.service || true
+    # Starting may legitimately fail when the panel is absent; never abort.
+    systemctl restart oled.service || true
+fi
+
+exit 0

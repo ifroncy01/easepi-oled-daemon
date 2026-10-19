@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,34 +14,43 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: [linux]
         goarch: [arm64, amd64]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.25'
 
-      - name: Build
+      - name: Build binary
         env:
           CGO_ENABLED: 0
-          GOOS: ${{ matrix.goos }}
+          GOOS: linux
           GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -ldflags="-s -w" -o oled-${{ matrix.goos }}-${{ matrix.goarch }} main.go
-          sha256sum oled-${{ matrix.goos }}-${{ matrix.goarch }} > oled-${{ matrix.goos }}-${{ matrix.goarch }}.sha256
+          go build -trimpath -ldflags="-s -w" -o oled-linux-${{ matrix.goarch }} main.go
+          sha256sum oled-linux-${{ matrix.goarch }} > oled-linux-${{ matrix.goarch }}.sha256
 
-      - name: Upload Artifact
+      - name: Build .deb package
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          chmod +x packaging/build-deb.sh
+          packaging/build-deb.sh ${{ matrix.goarch }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oled-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: oled-linux-${{ matrix.goarch }}
           path: |
-            oled-${{ matrix.goos }}-${{ matrix.goarch }}
-            oled-${{ matrix.goos }}-${{ matrix.goarch }}.sha256
+            oled-linux-${{ matrix.goarch }}
+            oled-linux-${{ matrix.goarch }}.sha256
+            dist/*.deb
 
   release:
     needs: build
@@ -48,6 +58,8 @@ jobs:
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
 
       - name: Display structure of downloaded files
         run: ls -R
@@ -56,8 +68,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            oled-linux-arm64/oled-linux-arm64
-            oled-linux-arm64/oled-linux-arm64.sha256
-            oled-linux-amd64/oled-linux-amd64
-            oled-linux-amd64/oled-linux-amd64.sha256
+            oled-linux-arm64
+            oled-linux-arm64.sha256
+            oled-linux-amd64
+            oled-linux-amd64.sha256
+            *.deb
           generate_release_notes: true

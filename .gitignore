@@ -6,6 +6,10 @@ oled-linux-*
 *.so
 *.dylib
 
+# Debian packages / build output
+dist/
+*.deb
+
 # Test binary, built with `go test -c`
 *.test
 

@@ -1,0 +1,12 @@
+#!/bin/sh
+# Pre-removal script for easepi-oled-daemon.
+set -e
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop oled.service || true
+    if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+        systemctl disable oled.service || true
+    fi
+fi
+
+exit 0
