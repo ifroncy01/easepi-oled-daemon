@@ -24,13 +24,16 @@ var iconSVG []byte
 const (
 	configPath = "/etc/oled/config.json"
 	unitName   = "oled.service"
+
+	// Fixed EasePi-A2 panel wiring; intentionally not configurable.
+	i2cBus  = 3
+	i2cAddr = 0x3c
 )
 
 // Config is the on-disk schema shared with the oled daemon (see config.go in
-// the repository root). Keep the JSON tags in sync.
+// the repository root). Keep the JSON tags in sync. The I2C bus and device
+// address are hardware constants and are not part of this schema.
 type Config struct {
-	I2CBus     int     `json:"i2c_bus"`
-	Address    int     `json:"address"`
 	Width      int     `json:"width"`
 	Height     int     `json:"height"`
 	CPUHigh    float64 `json:"cpu_high_threshold"`
@@ -44,8 +47,6 @@ type Config struct {
 
 func defaultConfig() Config {
 	return Config{
-		I2CBus:     3,
-		Address:    0x3c,
 		Width:      128,
 		Height:     32,
 		CPUHigh:    30,
@@ -71,12 +72,6 @@ func loadConfig() (Config, error) {
 }
 
 func (c *Config) normalize() {
-	if c.I2CBus < 0 || c.I2CBus > 9 {
-		c.I2CBus = 3
-	}
-	if c.Address < 0x03 || c.Address > 0x77 {
-		c.Address = 0x3c
-	}
 	if c.Width <= 0 {
 		c.Width = 128
 	}
@@ -105,12 +100,6 @@ func (c *Config) normalize() {
 
 func (c Config) validate() []string {
 	var errs []string
-	if c.I2CBus < 0 || c.I2CBus > 9 {
-		errs = append(errs, "i2c_bus 必须在 0-9 之间")
-	}
-	if c.Address < 0x03 || c.Address > 0x77 {
-		errs = append(errs, "address 必须在 0x03-0x77 之间")
-	}
 	if c.CPUHigh < 1 || c.CPUHigh > 100 {
 		errs = append(errs, "cpu_high_threshold 必须在 1-100 之间")
 	}
@@ -162,10 +151,9 @@ func serviceState() map[string]any {
 	pid, _ := systemctl("show", "-p", "MainPID", "--value", unitName)
 	since, _ := systemctl("show", "-p", "ActiveEnterTimestamp", "--value", unitName)
 
-	cfg, err := loadConfig()
-	bus := cfg.I2CBus
+	_, err := loadConfig()
 	panel := false
-	if _, statErr := os.Stat(fmt.Sprintf("/dev/i2c-%d", bus)); statErr == nil {
+	if _, statErr := os.Stat(fmt.Sprintf("/dev/i2c-%d", i2cBus)); statErr == nil {
 		panel = true
 	}
 	return map[string]any{
@@ -174,8 +162,8 @@ func serviceState() map[string]any {
 		"pid":          pid,
 		"active_since": since,
 		"panel_device": panel,
-		"bus":          bus,
-		"address":      cfg.Address,
+		"bus":          i2cBus,
+		"address":      i2cAddr,
 		"config_ok":    err == nil,
 	}
 }
@@ -260,9 +248,8 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			}
 			msg = "配置已保存，服务已重启"
 		}
-		log.Printf("config updated (restart=%v): bus=%d addr=0x%02x cpu=%.0f temp=%d net=%.0f alpha=%.2f",
-			req.Restart, req.Config.I2CBus, req.Config.Address, req.Config.CPUHigh,
-			req.Config.TempHigh, req.Config.NetHigh, req.Config.EmaAlpha)
+		log.Printf("config updated (restart=%v): cpu=%.0f temp=%d net=%.0f alpha=%.2f",
+			req.Restart, req.Config.CPUHigh, req.Config.TempHigh, req.Config.NetHigh, req.Config.EmaAlpha)
 		writeJSON(w, http.StatusOK, map[string]any{"message": msg, "config": req.Config})
 	default:
 		w.Header().Set("Allow", "GET, POST, PUT")

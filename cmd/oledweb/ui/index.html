@@ -109,13 +109,13 @@
     <div class="row">
       <div>
         <label>I2C 总线</label>
-        <input type="number" id="i2c_bus" min="0" max="9" step="1">
-        <div class="hint">A2 出厂为 3（对应 /dev/i2c-3），修改后需重启服务</div>
+        <input type="text" id="i2c_bus" value="3" disabled>
+        <div class="hint">EasePi-A2 硬件固定为 3（/dev/i2c-3），不可修改</div>
       </div>
       <div>
         <label>设备地址</label>
-        <input type="text" id="address" placeholder="0x3c">
-        <div class="hint">SSD1306 常见为 0x3C 或 0x3D</div>
+        <input type="text" id="address" value="0x3C" disabled>
+        <div class="hint">SSD1306 焊接地址固定为 0x3C，不可修改</div>
       </div>
       <div>
         <label>分辨率</label>
@@ -187,7 +187,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const FIELDS = ["i2c_bus","address","cpu_high_threshold","temp_high_threshold","net_high_threshold","ema_alpha","refresh_ms","hysteresis","silent"];
+const FIELDS = ["cpu_high_threshold","temp_high_threshold","net_high_threshold","ema_alpha","refresh_ms","hysteresis","silent"];
 const $ = id => document.getElementById(id);
 
 function toast(msg, kind = "ok") {
@@ -225,7 +225,6 @@ async function load() {
     for (const k of FIELDS) {
       const el = $(k);
       if (el.type === "checkbox") el.checked = !!c[k];
-      else if (k === "address") el.value = "0x" + Number(c[k]).toString(16).toUpperCase();
       else el.value = c[k];
     }
     if (d.warning) toast(d.warning, "err");
@@ -234,9 +233,6 @@ async function load() {
 
 function collect() {
   const c = {};
-  c.i2c_bus = Number($("i2c_bus").value);
-  const raw = $("address").value.trim().toLowerCase();
-  c.address = raw.startsWith("0x") ? parseInt(raw, 16) : parseInt(raw, 16);
   c.width = 128; c.height = 32;
   c.cpu_high_threshold = Number($("cpu_high_threshold").value);
   c.temp_high_threshold = Number($("temp_high_threshold").value);
@@ -245,7 +241,6 @@ function collect() {
   c.refresh_ms = Number($("refresh_ms").value);
   c.hysteresis = Number($("hysteresis").value);
   c.silent = $("silent").checked;
-  if (!Number.isFinite(c.address)) throw new Error("设备地址格式不正确，示例：0x3C");
   return c;
 }
 

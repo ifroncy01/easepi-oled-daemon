@@ -21,6 +21,10 @@ import (
 )
 
 const (
+	// I2C_BUS and DEVICE_ADDR are fixed for the EasePi-A2 hardware and are
+	// deliberately not exposed to the config file or the web UI.
+	I2C_BUS         = 3
+	DEVICE_ADDR     = 0x3c
 	WIDTH           = 128
 	HEIGHT          = 32
 	SSD1306_COMMAND = 0x00
@@ -48,13 +52,12 @@ type SSD1306 struct {
 }
 
 func newSSD1306() (*SSD1306, error) {
-	c := currentConfig()
-	path := fmt.Sprintf("/dev/i2c-%d", c.I2CBus)
+	path := fmt.Sprintf("/dev/i2c-%d", I2C_BUS)
 	fd, err := os.OpenFile(path, os.O_RDWR, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd.Fd(), I2C_SLAVE, uintptr(c.Address))
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd.Fd(), I2C_SLAVE, uintptr(DEVICE_ADDR))
 	if errno != 0 {
 		fd.Close()
 		return nil, fmt.Errorf("ioctl I2C_SLAVE: %v", errno)
@@ -62,7 +65,7 @@ func newSSD1306() (*SSD1306, error) {
 	// Probe the panel directly with a display-off command; a missing device NAKs here.
 	if _, err := fd.Write([]byte{SSD1306_COMMAND, 0xAE}); err != nil {
 		fd.Close()
-		return nil, fmt.Errorf("no OLED response at 0x%02x on i2c-%d: %w", c.Address, c.I2CBus, err)
+		return nil, fmt.Errorf("no OLED response at 0x%02x on i2c-%d: %w", DEVICE_ADDR, I2C_BUS, err)
 	}
 	return &SSD1306{fd: fd}, nil
 }
@@ -443,14 +446,14 @@ func main() {
 
 	logger.Println("=== EasePi A2 OLED Go Auto Mode ===")
 	logger.Printf("config: i2c-%d addr=0x%02x refresh=%dms alpha=%.2f cpu=%.0f%% temp=%dC net=%.0fK hysteresis=%d",
-		cfgNow.I2CBus, cfgNow.Address, cfgNow.RefreshMS, cfgNow.EmaAlpha,
+		I2C_BUS, DEVICE_ADDR, cfgNow.RefreshMS, cfgNow.EmaAlpha,
 		cfgNow.CPUHigh, cfgNow.TempHigh, cfgNow.NetHigh, cfgNow.Hysteresis)
 
 	if os.Geteuid() != 0 {
 		logger.Fatal("must run as root")
 	}
 
-	bus := cfgNow.I2CBus
+	bus := I2C_BUS
 	if _, err := os.Stat(fmt.Sprintf("/dev/i2c-%d", bus)); err != nil {
 		exec.Command("modprobe", "i2c-dev").Run()
 		if _, err := os.Stat(fmt.Sprintf("/dev/i2c-%d", bus)); err != nil {
@@ -523,11 +526,8 @@ func main() {
 				logger.Printf("config reload failed: %v", err)
 			} else {
 				applyConfig(c)
-				logger.Printf("config reloaded: i2c-%d addr=0x%02x refresh=%dms alpha=%.2f cpu=%.0f%% temp=%dC net=%.0fK hysteresis=%d",
-					c.I2CBus, c.Address, c.RefreshMS, c.EmaAlpha, c.CPUHigh, c.TempHigh, c.NetHigh, c.Hysteresis)
-				if c.I2CBus != bus || c.Address != cfgNow.Address {
-					logger.Printf("i2c bus/address changes require a service restart")
-				}
+				logger.Printf("config reloaded: refresh=%dms alpha=%.2f cpu=%.0f%% temp=%dC net=%.0fK hysteresis=%d",
+					c.RefreshMS, c.EmaAlpha, c.CPUHigh, c.TempHigh, c.NetHigh, c.Hysteresis)
 				if c.RefreshMS != refreshMS {
 					refreshMS = c.RefreshMS
 					ticker.Reset(time.Duration(refreshMS) * time.Millisecond)

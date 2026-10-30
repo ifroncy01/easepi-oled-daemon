@@ -12,12 +12,11 @@ import (
 // ConfigPath is the runtime configuration file shared with the web UI.
 const ConfigPath = "/etc/oled/config.json"
 
-// Config holds runtime tunables. Panel geometry stays fixed because the A2
-// hardware ships a 128x32 SSD1306 panel; the fields are kept in the file so a
-// future board variant can reuse the same schema.
+// Config holds runtime tunables. Panel geometry and the I2C bus/address stay
+// fixed in code (see I2C_BUS / DEVICE_ADDR) because the A2 hardware ships a
+// single 128x32 SSD1306 panel; they intentionally cannot be changed by the
+// config file or the web UI.
 type Config struct {
-	I2CBus     int     `json:"i2c_bus"`
-	Address    int     `json:"address"`
 	Width      int     `json:"width"`
 	Height     int     `json:"height"`
 	CPUHigh    float64 `json:"cpu_high_threshold"`
@@ -38,8 +37,6 @@ var (
 // configurable, so an unconfigured device behaves exactly as before.
 func defaultConfig() Config {
 	return Config{
-		I2CBus:     3,
-		Address:    0x3c,
 		Width:      128,
 		Height:     32,
 		CPUHigh:    30,
@@ -66,12 +63,6 @@ func applyConfig(c Config) {
 
 // normalizeConfig clamps user input to sane ranges.
 func normalizeConfig(c *Config) {
-	if c.I2CBus < 0 || c.I2CBus > 9 {
-		c.I2CBus = 3
-	}
-	if c.Address < 0x03 || c.Address > 0x77 {
-		c.Address = 0x3c
-	}
 	if c.Width <= 0 {
 		c.Width = 128
 	}
