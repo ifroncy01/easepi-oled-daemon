@@ -28,9 +28,15 @@ ssh root@<设备IP>
 curl -fsSL https://raw.githubusercontent.com/ifroncy01/easepi-oled-daemon/main/install.sh | sudo bash
 ```
 
-脚本会解析最新 Release、下载 arm64 `.deb`、校验 SHA256、安装并启用启动
-`oled.service`，最后报告屏幕是否已驱动。可用
-`sudo OLED_VERSION=1.5.0 bash install.sh` 固定版本。
+脚本会解析最新 Release，并按模式下载 app 包或纯 `.deb`：
+
+- `OLED_MODE=auto`（默认）——检测到 iNextOS（`/opt/roceos`）时安装 **app 包**
+  （守护进程 + 8099 网页配置 + 桌面图标），否则只装 `.deb`。
+- `OLED_MODE=app` 强制装 app 包；`OLED_MODE=daemon` 强制只装 `.deb`。
+
+安装前校验 SHA256，随后启用并启动 `oled.service`（app 模式下同时处理
+`oled-web.service`）并自检。可用 `sudo OLED_VERSION=1.6.1 bash install.sh`
+固定版本。
 
 ### 离线安装（无外网设备推荐）
 

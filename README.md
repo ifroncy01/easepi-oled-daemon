@@ -28,9 +28,17 @@ ssh root@<device-ip>
 curl -fsSL https://raw.githubusercontent.com/ifroncy01/easepi-oled-daemon/main/install.sh | sudo bash
 ```
 
-The script resolves the latest release, downloads the arm64 `.deb`, verifies its
-SHA256, installs it, enables and starts `oled.service`, then reports whether the
-panel is driven. Pin a version with `sudo OLED_VERSION=1.5.0 bash install.sh`.
+The script resolves the latest release and downloads either the app bundle or
+the plain `.deb`:
+
+- `OLED_MODE=auto` (default) — installs the **app bundle** (panel daemon + web
+  UI on port 8099 + desktop icon) when iNextOS (`/opt/roceos`) is detected,
+  otherwise the `.deb` alone.
+- `OLED_MODE=app` — force the app bundle; `OLED_MODE=daemon` — force the deb only.
+
+SHA256 is verified before installing, then `oled.service` (and `oled-web.service`
+in app mode) is enabled, started, and checked. Pin a version with
+`sudo OLED_VERSION=1.5.0 bash install.sh`.
 
 ### Offline install (recommended for air-gapped devices)
 
