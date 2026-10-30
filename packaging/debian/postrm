@@ -6,10 +6,14 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload || true
 fi
 
-# Drop the local override drop-in directory left behind on purge.
+# Drop everything the package owns, including files that dpkg does not track
+# (the port override drop-in written by app/install.sh) so that a purge leaves
+# no residue behind.
 if [ "$1" = "purge" ]; then
     rm -rf /usr/local/oled
+    rm -rf /etc/systemd/system/oled-web.service.d
     rmdir /etc/systemd/system/oled.service.d 2>/dev/null || true
+    rmdir /etc/oled 2>/dev/null || true
 fi
 
 exit 0

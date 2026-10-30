@@ -15,6 +15,10 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl enable oled.service || true
     # Starting may legitimately fail when the panel is absent; never abort.
     systemctl restart oled.service || true
+
+    systemctl unmask oled-web.service >/dev/null 2>&1 || true
+    systemctl enable oled-web.service || true
+    systemctl restart oled-web.service || true
 fi
 
 exit 0

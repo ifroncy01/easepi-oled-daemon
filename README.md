@@ -97,21 +97,25 @@ ssh root@<设备IP> 'dpkg -i /tmp/easepi-oled-daemon_1.6.3_arm64.deb'
 | 路径 | 用途 |
 |---|---|
 | `/usr/local/oled/oled` | 静态编译的 arm64 守护进程 |
+| `/usr/local/oled/oled-web` | 网页配置服务（8099） |
 | `/usr/local/oled/DejaVuSansMono.ttf` | 内置字体 |
-| `/usr/lib/systemd/system/oled.service` | 厂商 systemd 单元 |
+| `/usr/lib/systemd/system/oled.service` | 面板守护进程单元 |
+| `/usr/lib/systemd/system/oled-web.service` | 网页配置单元 |
 | `/etc/oled/config.json` | 运行时配置（**conffile**，升级保留） |
 | `/etc/systemd/system/oled.service.d/10-easepi-a2.conf` | 本地覆盖 drop-in（**conffile**，升级保留） |
 | `/usr/share/doc/easepi-oled-daemon/` | README 与版权说明 |
 
-包的 `postinst` 会自动 `daemon-reload`、`enable` 并重启服务；包内附 `md5sums`，
-可用 `dpkg -V` 校验完整性。
+包的 `postinst` 会自动 `daemon-reload`、`enable` 并启动两个服务；包内附 `md5sums`，
+可用 `dpkg -V` 校验完整性。构建时同时生成 `dist/<包名>.filelist.txt`，逐条列出
+包会落地的全部系统文件，便于商店或其他卸载器完整清理。
 
 ### 本地构建
 
 ```bash
-make deb                 # 仅 arm64，产物在 dist/（含 .sha256）
+make deb                 # 仅 arm64，产物在 dist/（含 .sha256 与 .filelist.txt）
 make app                 # 守护进程 + 网页配置的 iNextOS 应用包
-VERSION=1.6.3 make deb   # 指定版本
+make store               # 商店上架草案包（manifest.json + filelist.txt + debs/）
+VERSION=1.6.4 make deb   # 指定版本
 ```
 
 ## 运行与使用
@@ -169,8 +173,8 @@ ssh root@<设备IP> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.3
 
 安装脚本依次：
 
-1. `dpkg -i` 安装随包的守护进程 deb（升级时保留 conffile）
-2. 安装 `/usr/local/oled/oled-web` 与 `oled-web.service`（默认端口 8099，可用 `OLEDWEB_PORT` 覆盖）
+1. `dpkg -i` 安装随包的 deb（其中同时包含守护进程、`oled-web` 与两个 systemd 单元）
+2. 非默认端口时写入 `oled-web` 的 systemd drop-in（不改动包内单元）
 3. 按 iNextOS 的方式注册应用：写入 `installed_apps`（`webapp_port=8099`）与 `desktop_layouts` 桌面图标
 4. 清理历史上无效的 nginx 片段
 
@@ -190,12 +194,28 @@ HTTP API：
 
 界面无登录鉴权，仅允许内网/链路本地来源访问；请勿将 8099 端口映射到公网。
 
-卸载（默认保留守护进程，`--purge` 一并移除）：
+卸载（默认注销图标并禁用网页，保留守护进程；`--purge` 一并移除全部文件）：
 
 ```bash
 ssh root@<设备IP> 'bash /tmp/oledapp/uninstall.sh'
 ssh root@<设备IP> 'bash /tmp/oledapp/uninstall.sh --purge'
 ```
+
+## 商店上架草案包
+
+`make store` 生成 `dist/easepi-oled-store_<版本>_arm64.tar.gz`，结构对齐平台
+`SystemBundleInstaller` 的约定：
+
+| 文件 | 用途 |
+|---|---|
+| `manifest.json` | 商店目录条目（id/type=system/version/组件/端口等），URL 与 sha256 留占位 |
+| `required-packages.json` | 系统依赖声明（当前为空，静态二进制无依赖） |
+| `filelist.txt` | 包会安装的全部系统路径，供卸载完整清理 |
+| `debs/<deb>` | 离线安装包 |
+
+其中 `components` 已写好 `oled`、`oled-web` 的 `probe` 与 `service`，平台按 system
+类型卸载时会停用对应服务。`manifest.json` 的 `__BUNDLE_URL__`、`__BUNDLE_SHA256__`、
+`__ICON_URL__` 需在托管后按生成的 `.sha256` 填写。
 
 ## 验证
 

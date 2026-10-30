@@ -44,17 +44,22 @@ mkdir -p "$stage/DEBIAN" \
          "$stage/etc/oled" \
          "$stage/usr/share/doc/${PKG}"
 
-# 1. Static binary
+# 1. Static binaries: panel daemon and the web configuration UI
 ( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
     go build -trimpath -ldflags="-s -w" -o "$stage/usr/local/oled/oled" . )
 chmod 0755 "$stage/usr/local/oled/oled"
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
+    go build -trimpath -ldflags="-s -w" -o "$stage/usr/local/oled/oled-web" ./cmd/oledweb )
+chmod 0755 "$stage/usr/local/oled/oled-web"
 
 # 2. Bundled font so the package works offline without fonts-dejavu-core
 install -m 0644 "$FONT_SRC" "$stage/usr/local/oled/DejaVuSansMono.ttf"
 
-# 3. Vendor systemd unit plus an upgrade-safe local override drop-in
+# 3. Vendor systemd units plus an upgrade-safe local override drop-in
 install -m 0644 "$ROOT/packaging/oled.service" \
     "$stage/usr/lib/systemd/system/oled.service"
+install -m 0644 "$ROOT/packaging/oled-web.service" \
+    "$stage/usr/lib/systemd/system/oled-web.service"
 install -m 0644 "$ROOT/packaging/debian/oled-local.conf" \
     "$stage/etc/systemd/system/oled.service.d/10-easepi-a2.conf"
 
@@ -85,11 +90,17 @@ printf '%s\n' "/etc/systemd/system/oled.service.d/10-easepi-a2.conf" \
 ( cd "$stage" && find . -type f ! -path './DEBIAN/*' -printf '%P\n' \
     | sort | xargs -r md5sum ) > "$stage/DEBIAN/md5sums"
 
-# 8. Assemble the package
+# 8. File manifest: every path this package installs on the system, so a
+#    store uninstaller (or any external tool) can remove them all.
 mkdir -p "$OUT"
+filelist="$OUT/${PKG}_${VERSION}_${ARCH}.filelist.txt"
+( cd "$stage" && find . -type f ! -path './DEBIAN/*' -printf '/%P\n' | sort ) > "$filelist"
+
+# 9. Assemble the package
 out="$OUT/${PKG}_${VERSION}_${ARCH}.deb"
 dpkg-deb --root-owner-group --build "$stage" "$out" >/dev/null
 ( cd "$OUT" && sha256sum "$(basename "$out")" > "$(basename "$out").sha256" )
 echo "    -> $out"
 echo "    -> ${out}.sha256"
+echo "    -> $filelist"
 echo "==> done"

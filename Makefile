@@ -9,7 +9,7 @@ LDFLAGS := -s -w
 GOPROXY ?= https://goproxy.cn,direct
 VERSION ?= $(shell git describe --tags --always 2>/dev/null | sed 's/^v//' || echo 1.0.0)
 
-.PHONY: all build web deb app clean test help
+.PHONY: all build web deb app store clean test help
 
 all: build
 
@@ -28,22 +28,27 @@ web:
 	@echo "=> Built: dist/$(WEB_BINARY)"
 
 # Self-contained arm64 .deb (bundled font, no external dependencies).
+# The package ships both the panel daemon and the oled-web configuration UI.
 deb:
 	@echo "=> Building deb $(VERSION)..."
 	VERSION=$(VERSION) packaging/build-deb.sh arm64
 
-# iNextOS app bundle: web UI + installer + daemon package, ready to scp.
-app: web deb
+# iNextOS app bundle: installer + registration + daemon package (deb now
+# contains oled-web and its unit), ready to scp.
+app: deb
 	@echo "=> Bundling iNextOS app $(VERSION)..."
 	@rm -rf dist/app && mkdir -p dist/app
-	install -m 0755 dist/$(WEB_BINARY) dist/app/
 	install -m 0755 app/install.sh app/uninstall.sh dist/app/
 	install -m 0755 app/register.py dist/app/register.py
-	install -m 0644 packaging/oled-web.service dist/app/
 	install -m 0644 cmd/oledweb/ui/icon.svg dist/app/
 	cp dist/easepi-oled-daemon_$(VERSION)_arm64.deb dist/app/
 	tar -C dist/app -czf dist/easepi-oled-app_$(VERSION)_arm64.tar.gz .
 	@echo "    -> dist/easepi-oled-app_$(VERSION)_arm64.tar.gz"
+
+# Store submission draft: manifest.json + required-packages.json + filelist.txt + debs/
+store: deb
+	@echo "=> Building store draft $(VERSION)..."
+	@VERSION=$(VERSION) packaging/build-store.sh
 
 clean:
 	rm -f $(BINARY) oled-linux-*
@@ -57,5 +62,6 @@ help:
 	@echo "make web      - build dist/$(WEB_BINARY) (web configuration UI)"
 	@echo "make deb      - build dist/easepi-oled-daemon_<version>_arm64.deb (VERSION=$(VERSION))"
 	@echo "make app      - build dist/easepi-oled-app_<version>_arm64.tar.gz (iNextOS app bundle)"
+	@echo "make store    - build dist/easepi-oled-store_<version>_arm64.tar.gz (store draft)"
 	@echo "make test     - run go vet"
 	@echo "make clean    - remove binaries and dist/"

@@ -1,0 +1,60 @@
+{
+  "id": "easepi-oled",
+  "name": "OLED 显示",
+  "nameEn": "OLED Display",
+  "shortDescription": "在 EasePi-A2 的 128x32 OLED 屏上显示 IP、CPU、温度与网速，支持网页端配置",
+  "description": "为 EasePi-A2（RK3568）的 SSD1306 128x32 OLED（I2C-3, 0x3C）提供常驻显示服务：空闲时显示 IP，负载升高时自动切换为两行或三行布局（CPU 占用、SoC 温度、网络速率）。阈值可在应用网页端调整，配置热加载，约 1 秒生效。软件包静态编译、内置字体，离线可用。",
+  "version": "__VERSION__",
+  "type": "system",
+  "category": "system",
+  "tags": ["status-display", "oled", "easepi-a2", "system-monitor"],
+  "features": [
+    "空闲显示 IP，负载变化自动切换两行/三行布局",
+    "网页端调整 CPU / 温度 / 网速阈值，热加载无需重启",
+    "内置字体与静态二进制，无外部依赖，支持离线安装",
+    "开机自启，SIGTERM 优雅退出"
+  ],
+  "iconUrl": "__ICON_URL__",
+  "heroColor": "#1f2937",
+  "author": {
+    "name": "ifroncy",
+    "url": "https://github.com/ifroncy01"
+  },
+  "developer": "ifroncy",
+  "repository": "https://github.com/ifroncy01/easepi-oled-daemon",
+  "license": "MIT",
+  "requirements": [
+    "EasePi-A2 (Rockchip RK3568)",
+    "arm64",
+    "SSD1306 128x32 OLED on i2c-3, address 0x3c"
+  ],
+  "system": {
+    "platforms": {
+      "aarch64": "__BUNDLE_URL__"
+    },
+    "sha256": {
+      "aarch64": "__BUNDLE_SHA256__"
+    },
+    "sizeBytes": __BUNDLE_SIZE__,
+    "requiredSpaceMB": 20,
+    "components": [
+      {
+        "id": "oled",
+        "name": "OLED 面板守护进程",
+        "probe": "/usr/local/oled/oled",
+        "service": "oled",
+        "version": "__VERSION__"
+      },
+      {
+        "id": "oled-web",
+        "name": "OLED 网页配置界面",
+        "probe": "/usr/local/oled/oled-web",
+        "service": "oled-web",
+        "version": "__VERSION__"
+      }
+    ],
+    "defaultPort": 8099,
+    "installScript": "install.sh",
+    "uninstallScript": "uninstall.sh"
+  }
+}

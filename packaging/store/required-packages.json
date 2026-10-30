@@ -1,0 +1,5 @@
+{
+  "arch": "arm64",
+  "packages": [],
+  "notes": "Draft: the daemon is a static binary with a bundled font, so no extra system packages are required. Extend this list if the store validates required-packages.json against a fixed schema."
+}

@@ -3,8 +3,9 @@
 # Install the OLED configuration app on iNextOS (EasePi-A2).
 #
 # The script does three things:
-#   1. install (or upgrade) the OLED panel daemon package
-#   2. install and start oled-web, the web configuration UI on port 8099
+#   1. install (or upgrade) the OLED package: panel daemon + web UI (both
+#      binaries and both systemd units ship inside the .deb)
+#   2. apply an optional non-default web port through a systemd drop-in
 #   3. register the app inside iNextOS: installed_apps row + desktop icon
 #
 # iNextOS exposes third-party apps on their own port (like ddns-go), so
@@ -23,13 +24,14 @@ PORT="${OLEDWEB_PORT:-8099}"
 VERSION="${APP_VERSION:-}"
 ROCEOS_DB="/opt/roceos/data/roceos.db"
 NGINX_CONF="/etc/nginx/conf.d/roceos-apps/${APP_ID}.conf"
+DROPIN_DIR="/etc/systemd/system/oled-web.service.d"
+DROPIN="${DROPIN_DIR}/10-port.conf"
 
-# Version comes from the bundled package name unless explicitly overridden.
-deb="$(find "$HERE" -maxdepth 1 -name 'easepi-oled-daemon_*_arm64.deb' | head -1 || true)"
+# The package may sit next to this script or in a debs/ sub-directory (store layout).
+deb="$(find "$HERE" "$HERE/debs" -maxdepth 1 -name 'easepi-oled-daemon_*_arm64.deb' 2>/dev/null | head -1 || true)"
 if [ -z "$VERSION" ] && [ -n "$deb" ]; then
     VERSION="$(basename "$deb" | sed -E 's/^easepi-oled-daemon_(.+)_arm64\.deb$/\1/')"
 fi
-VERSION="${VERSION:-0.0.0}"
 
 log()  { printf '[INFO] %s\n' "$*"; }
 warn() { printf '[WARN] %s\n' "$*" >&2; }
@@ -42,34 +44,46 @@ case "$(uname -m)" in
 esac
 
 command -v python3 >/dev/null 2>&1 || die "缺少 python3（iNextOS 自带，请检查系统）"
-[ -x "$HERE/oled-web" ] || die "缺少 oled-web 二进制，请使用完整的应用包（dist/app/）"
 
 HAS_ROCEOS=0
 [ -d /opt/roceos ] && HAS_ROCEOS=1
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -n "$IP" ] || IP="127.0.0.1"
 
-# --- 1. panel daemon -------------------------------------------------------
+# --- 1. package (daemon + web UI) ------------------------------------------
 if [ -n "$deb" ]; then
-    log "安装/升级守护进程 $(basename "$deb")"
+    log "安装/升级 $(basename "$deb")"
     dpkg -i "$deb" >/dev/null
-elif ! dpkg -s easepi-oled-daemon >/dev/null 2>&1; then
-    die "本机未安装 OLED 守护进程，且应用包内没有 .deb；请先执行项目根目录的 install.sh"
+elif dpkg -s easepi-oled-daemon >/dev/null 2>&1; then
+    log "软件包已安装：$(dpkg-query -W -f='${Version}' easepi-oled-daemon)"
 else
-    log "守护进程已安装：$(dpkg-query -W -f='${Version}' easepi-oled-daemon)"
+    die "本机未安装 easepi-oled-daemon，且应用包内没有 .deb；请先执行项目根目录的 install.sh"
 fi
-systemctl enable --quiet oled.service || warn "无法启用 oled.service"
-systemctl restart oled.service || warn "oled.service 启动失败，请检查 /dev/i2c-3 与面板连接"
+[ -x /usr/local/oled/oled ] || die "缺少 /usr/local/oled/oled，安装可能失败"
+[ -x /usr/local/oled/oled-web ] || die "缺少 /usr/local/oled/oled-web，安装可能失败"
+[ -f /usr/lib/systemd/system/oled-web.service ] || die "缺少 oled-web.service 单元"
 
-# --- 2. web UI ------------------------------------------------------------
-log "安装 oled-web 到 /usr/local/oled/oled-web"
-install -m 0755 "$HERE/oled-web" /usr/local/oled/oled-web
-install -m 0644 "$HERE/oled-web.service" /usr/lib/systemd/system/oled-web.service
-sed -i "s/-port 8099/-port ${PORT}/" /usr/lib/systemd/system/oled-web.service
+# --- 2. optional port override ---------------------------------------------
+# The unit ships with -port 8099; any other port is applied through a drop-in
+# so the packaged unit stays untouched (dpkg -V keeps passing).
+if [ "$PORT" != "8099" ]; then
+    log "配置网页端口 ${PORT}（drop-in ${DROPIN}）"
+    mkdir -p "$DROPIN_DIR"
+    cat > "$DROPIN" <<EOF
+[Service]
+ExecStart=
+ExecStart=/usr/local/oled/oled-web -bind 0.0.0.0 -port ${PORT}
+EOF
+elif [ -f "$DROPIN" ]; then
+    rm -f "$DROPIN"
+    rmdir "$DROPIN_DIR" 2>/dev/null || true
+fi
 
 systemctl daemon-reload
-systemctl enable --quiet oled-web.service
-systemctl restart oled-web.service
+systemctl enable --quiet oled.service || warn "无法启用 oled.service"
+systemctl restart oled.service || warn "oled.service 启动失败，请检查 /dev/i2c-3 与面板连接"
+systemctl enable --quiet oled-web.service || warn "无法启用 oled-web.service"
+systemctl restart oled-web.service || warn "oled-web.service 启动失败"
 
 for _ in $(seq 1 25); do
     if curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then

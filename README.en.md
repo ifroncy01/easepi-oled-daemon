@@ -96,22 +96,27 @@ run `sudo bash install.sh`; it picks up the local package automatically.
 
 | Path | Purpose |
 |---|---|
-| `/usr/local/oled/oled` | static arm64 daemon binary |
+| `/usr/local/oled/oled` | static arm64 panel daemon |
+| `/usr/local/oled/oled-web` | web configuration UI (port 8099) |
 | `/usr/local/oled/DejaVuSansMono.ttf` | bundled font |
-| `/usr/lib/systemd/system/oled.service` | vendor systemd unit |
+| `/usr/lib/systemd/system/oled.service` | panel daemon unit |
+| `/usr/lib/systemd/system/oled-web.service` | web UI unit |
 | `/etc/oled/config.json` | runtime configuration (**conffile**, survives upgrades) |
 | `/etc/systemd/system/oled.service.d/10-easepi-a2.conf` | local override drop-in (**conffile**, survives upgrades) |
 | `/usr/share/doc/easepi-oled-daemon/` | README and copyright notice |
 
-`postinst` runs `daemon-reload`, enables and restarts the service. The package
-ships `md5sums`, so `dpkg -V` can verify file integrity.
+`postinst` runs `daemon-reload`, enables and starts both services. The package
+ships `md5sums`, so `dpkg -V` can verify file integrity. The build also emits
+`dist/<package>.filelist.txt`, listing every system path the package installs so
+a store (or any other uninstaller) can remove them all.
 
 ### Build locally
 
 ```bash
-make deb                 # arm64 only, output in dist/ (+ .sha256)
+make deb                 # arm64 only, output in dist/ (+ .sha256 and .filelist.txt)
 make app                 # daemon + web UI bundle for iNextOS
-VERSION=1.6.3 make deb   # pin the version
+make store               # store submission draft (manifest + filelist + debs/)
+VERSION=1.6.4 make deb   # pin the version
 ```
 
 ## Usage
@@ -170,8 +175,9 @@ ssh root@<device-ip> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.
 
 The installer:
 
-1. `dpkg -i` of the bundled daemon package (upgrade-safe, conffiles preserved)
-2. installs `/usr/local/oled/oled-web` and `oled-web.service` (port 8099, override with `OLEDWEB_PORT`)
+1. `dpkg -i` of the bundled package (it already contains the daemon, `oled-web`
+   and both systemd units)
+2. writes an `oled-web` drop-in when a non-default port is requested
 3. registers the app the way iNextOS does for docker apps: an `installed_apps`
    row (`webapp_port=8099`) plus a `desktop_layouts` icon entry
 4. removes the legacy nginx snippet that iNextOS never included
@@ -194,12 +200,30 @@ HTTP API:
 The UI is unauthenticated and restricted to private/link-local source addresses;
 do not port-forward 8099 to the internet.
 
-Uninstall (keeps the panel daemon; `--purge` removes it too):
+Uninstall (defaults to unregistering the icon and disabling the web UI while the
+panel daemon keeps running; `--purge` removes every file):
 
 ```bash
 ssh root@<device-ip> 'bash /tmp/oledapp/uninstall.sh'
 ssh root@<device-ip> 'bash /tmp/oledapp/uninstall.sh --purge'
 ```
+
+## Store submission draft
+
+`make store` produces `dist/easepi-oled-store_<version>_arm64.tar.gz` matching the
+platform `SystemBundleInstaller` layout:
+
+| File | Purpose |
+|---|---|
+| `manifest.json` | catalog entry (id, type=system, version, components, port); URLs and sha256 are placeholders |
+| `required-packages.json` | system dependency declaration (empty: the binary is static) |
+| `filelist.txt` | every system path installed, for complete removal |
+| `debs/<deb>` | offline package |
+
+`components` already declares the `oled` and `oled-web` probes and services, so a
+system-type uninstall stops both services. Fill `__BUNDLE_URL__`,
+`__BUNDLE_SHA256__` and `__ICON_URL__` after hosting the bundle, using the emitted
+`.sha256`.
 
 ## Verify
 
