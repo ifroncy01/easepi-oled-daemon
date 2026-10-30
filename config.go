@@ -12,20 +12,17 @@ import (
 // ConfigPath is the runtime configuration file shared with the web UI.
 const ConfigPath = "/etc/oled/config.json"
 
-// Config holds runtime tunables. Panel geometry and the I2C bus/address stay
-// fixed in code (see I2C_BUS / DEVICE_ADDR) because the A2 hardware ships a
-// single 128x32 SSD1306 panel; they intentionally cannot be changed by the
-// config file or the web UI.
+// Config holds runtime tunables. Panel geometry, the I2C bus/address and the
+// timing constants (see EMA_ALPHA / REFRESH_MS / HYSTERESIS) stay fixed in code
+// because the A2 hardware ships a single 128x32 SSD1306 panel; only the three
+// load thresholds and silent mode can be tuned at runtime.
 type Config struct {
-	Width      int     `json:"width"`
-	Height     int     `json:"height"`
-	CPUHigh    float64 `json:"cpu_high_threshold"`
-	TempHigh   int     `json:"temp_high_threshold"`
-	NetHigh    float64 `json:"net_high_threshold"`
-	EmaAlpha   float64 `json:"ema_alpha"`
-	RefreshMS  int     `json:"refresh_ms"`
-	Hysteresis int     `json:"hysteresis"`
-	Silent     bool    `json:"silent"`
+	Width    int     `json:"width"`
+	Height   int     `json:"height"`
+	CPUHigh  float64 `json:"cpu_high_threshold"`
+	TempHigh int     `json:"temp_high_threshold"`
+	NetHigh  float64 `json:"net_high_threshold"`
+	Silent   bool    `json:"silent"`
 }
 
 var (
@@ -37,15 +34,12 @@ var (
 // configurable, so an unconfigured device behaves exactly as before.
 func defaultConfig() Config {
 	return Config{
-		Width:      128,
-		Height:     32,
-		CPUHigh:    30,
-		TempHigh:   60,
-		NetHigh:    100,
-		EmaAlpha:   0.3,
-		RefreshMS:  950,
-		Hysteresis: 3,
-		Silent:     false,
+		Width:    128,
+		Height:   32,
+		CPUHigh:  30,
+		TempHigh: 60,
+		NetHigh:  100,
+		Silent:   false,
 	}
 }
 
@@ -77,15 +71,6 @@ func normalizeConfig(c *Config) {
 	}
 	if c.NetHigh < 1 || c.NetHigh > 100000 {
 		c.NetHigh = 100
-	}
-	if c.EmaAlpha <= 0 || c.EmaAlpha >= 1 {
-		c.EmaAlpha = 0.3
-	}
-	if c.RefreshMS < 200 || c.RefreshMS > 5000 {
-		c.RefreshMS = 950
-	}
-	if c.Hysteresis < 1 || c.Hysteresis > 20 {
-		c.Hysteresis = 3
 	}
 }
 

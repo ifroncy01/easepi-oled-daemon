@@ -23,10 +23,17 @@ import (
 const (
 	// I2C_BUS and DEVICE_ADDR are fixed for the EasePi-A2 hardware and are
 	// deliberately not exposed to the config file or the web UI.
-	I2C_BUS         = 3
-	DEVICE_ADDR     = 0x3c
-	WIDTH           = 128
-	HEIGHT          = 32
+	I2C_BUS     = 3
+	DEVICE_ADDR = 0x3c
+	WIDTH       = 128
+	HEIGHT      = 32
+
+	// Display timing and smoothing are fixed tuning constants; the web UI
+	// shows them read-only. Only the three load thresholds are tunable.
+	EMA_ALPHA  = 0.3
+	REFRESH_MS = 950
+	HYSTERESIS = 3
+
 	SSD1306_COMMAND = 0x00
 	SSD1306_DATA    = 0x40
 	I2C_SLAVE       = 0x0703
@@ -263,7 +270,7 @@ func (n *NetMon) GetSpeed() (string, string) {
 	if n.emaRx == 0.0 {
 		n.emaRx, n.emaTx = rxSpeed, txSpeed
 	} else {
-		alpha := currentConfig().EmaAlpha
+		alpha := float64(EMA_ALPHA)
 		n.emaRx = alpha*rxSpeed + (1-alpha)*n.emaRx
 		n.emaTx = alpha*txSpeed + (1-alpha)*n.emaTx
 	}
@@ -446,8 +453,8 @@ func main() {
 
 	logger.Println("=== EasePi A2 OLED Go Auto Mode ===")
 	logger.Printf("config: i2c-%d addr=0x%02x refresh=%dms alpha=%.2f cpu=%.0f%% temp=%dC net=%.0fK hysteresis=%d",
-		I2C_BUS, DEVICE_ADDR, cfgNow.RefreshMS, cfgNow.EmaAlpha,
-		cfgNow.CPUHigh, cfgNow.TempHigh, cfgNow.NetHigh, cfgNow.Hysteresis)
+		I2C_BUS, DEVICE_ADDR, REFRESH_MS, EMA_ALPHA,
+		cfgNow.CPUHigh, cfgNow.TempHigh, cfgNow.NetHigh, HYSTERESIS)
 
 	if os.Geteuid() != 0 {
 		logger.Fatal("must run as root")
@@ -501,8 +508,7 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	refreshMS := cfgNow.RefreshMS
-	ticker := time.NewTicker(time.Duration(refreshMS) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(REFRESH_MS) * time.Millisecond)
 	defer ticker.Stop()
 
 	cfgModTime := fileModTime(ConfigPath)
@@ -526,12 +532,8 @@ func main() {
 				logger.Printf("config reload failed: %v", err)
 			} else {
 				applyConfig(c)
-				logger.Printf("config reloaded: refresh=%dms alpha=%.2f cpu=%.0f%% temp=%dC net=%.0fK hysteresis=%d",
-					c.RefreshMS, c.EmaAlpha, c.CPUHigh, c.TempHigh, c.NetHigh, c.Hysteresis)
-				if c.RefreshMS != refreshMS {
-					refreshMS = c.RefreshMS
-					ticker.Reset(time.Duration(refreshMS) * time.Millisecond)
-				}
+				logger.Printf("config reloaded: cpu=%.0f%% temp=%dC net=%.0fK",
+					c.CPUHigh, c.TempHigh, c.NetHigh)
 				if want := c.Silent || *silentFlag; want != silentNow {
 					silentNow = want
 					if want {
@@ -563,7 +565,7 @@ func main() {
 		if newTarget != currentMode {
 			if newTarget == targetMode {
 				modeChangeCounter++
-				if modeChangeCounter >= cfgNow.Hysteresis {
+				if modeChangeCounter >= HYSTERESIS {
 					currentMode = targetMode
 					modeChangeCounter = 0
 					logger.Printf("Mode changed to: %d (CPU:%.1f%% Temp:%d\u00b0C RX:%.1fK TX:%.1fK)",

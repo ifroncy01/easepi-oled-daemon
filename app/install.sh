@@ -20,9 +20,16 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ID="oled"
 LABEL="OLED 显示"
 PORT="${OLEDWEB_PORT:-8099}"
-VERSION="${APP_VERSION:-1.6.0}"
+VERSION="${APP_VERSION:-}"
 ROCEOS_DB="/opt/roceos/data/roceos.db"
 NGINX_CONF="/etc/nginx/conf.d/roceos-apps/${APP_ID}.conf"
+
+# Version comes from the bundled package name unless explicitly overridden.
+deb="$(find "$HERE" -maxdepth 1 -name 'easepi-oled-daemon_*_arm64.deb' | head -1 || true)"
+if [ -z "$VERSION" ] && [ -n "$deb" ]; then
+    VERSION="$(basename "$deb" | sed -E 's/^easepi-oled-daemon_(.+)_arm64\.deb$/\1/')"
+fi
+VERSION="${VERSION:-0.0.0}"
 
 log()  { printf '[INFO] %s\n' "$*"; }
 warn() { printf '[WARN] %s\n' "$*" >&2; }
@@ -43,7 +50,6 @@ IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -n "$IP" ] || IP="127.0.0.1"
 
 # --- 1. panel daemon -------------------------------------------------------
-deb="$(find "$HERE" -maxdepth 1 -name 'easepi-oled-daemon_*_arm64.deb' | head -1 || true)"
 if [ -n "$deb" ]; then
     log "安装/升级守护进程 $(basename "$deb")"
     dpkg -i "$deb" >/dev/null

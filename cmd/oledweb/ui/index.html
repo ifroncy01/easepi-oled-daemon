@@ -105,53 +105,56 @@
   </div>
 
   <div class="card">
-    <h2>显示参数 <small>保存后无需重启，守护进程会在 1 秒内热加载</small></h2>
+    <h2>显示参数 <small>阈值保存后 1 秒内热加载；其余为固化参数，仅展示</small></h2>
     <div class="row">
-      <div>
-        <label>I2C 总线</label>
-        <input type="text" id="i2c_bus" value="3" disabled>
-        <div class="hint">EasePi-A2 硬件固定为 3（/dev/i2c-3），不可修改</div>
-      </div>
-      <div>
-        <label>设备地址</label>
-        <input type="text" id="address" value="0x3C" disabled>
-        <div class="hint">SSD1306 焊接地址固定为 0x3C，不可修改</div>
-      </div>
-      <div>
-        <label>分辨率</label>
-        <input type="text" id="resolution" value="128 × 32" disabled>
-        <div class="hint">由硬件固定，不可修改</div>
-      </div>
-    </div>
-    <div class="row" style="margin-top:14px">
       <div>
         <label>CPU 高负载阈值（%）</label>
         <input type="number" id="cpu_high_threshold" min="1" max="100" step="1">
+        <div class="hint">CPU 占用超过该值即进入 CPU 显示模式</div>
       </div>
       <div>
         <label>温度高负载阈值（°C）</label>
         <input type="number" id="temp_high_threshold" min="30" max="110" step="1">
+        <div class="hint">SoC 温度超过该值即进入 CPU 显示模式</div>
       </div>
       <div>
         <label>网速高负载阈值（KB/s）</label>
         <input type="number" id="net_high_threshold" min="1" max="100000" step="1">
+        <div class="hint">RX 或 TX 任一超过该值即进入网络显示模式</div>
       </div>
     </div>
     <div class="row" style="margin-top:14px">
       <div>
-        <label>网速平滑系数</label>
-        <input type="number" id="ema_alpha" min="0.05" max="0.95" step="0.05">
-        <div class="hint">越大越灵敏，越小越平稳</div>
+        <label>I2C 总线</label>
+        <input type="text" value="3" disabled>
+        <div class="hint">EasePi-A2 硬件固定为 /dev/i2c-3</div>
       </div>
       <div>
-        <label>刷新间隔（ms）</label>
-        <input type="number" id="refresh_ms" min="200" max="5000" step="50">
-        <div class="hint">建议 800-1200</div>
+        <label>设备地址</label>
+        <input type="text" value="0x3C" disabled>
+        <div class="hint">SSD1306 焊接地址固定</div>
+      </div>
+      <div>
+        <label>分辨率</label>
+        <input type="text" value="128 × 32" disabled>
+        <div class="hint">由硬件固定</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div>
+        <label>网速平滑系数（EMA α）</label>
+        <input type="text" value="0.30" disabled>
+        <div class="hint">固化值，防止网速数字剧烈跳动</div>
+      </div>
+      <div>
+        <label>刷新间隔</label>
+        <input type="text" value="950 ms" disabled>
+        <div class="hint">固化值，每秒约采集并刷新一次</div>
       </div>
       <div>
         <label>模式切换防抖次数</label>
-        <input type="number" id="hysteresis" min="1" max="20" step="1">
-        <div class="hint">连续命中阈值 N 次后才切换，避免闪烁</div>
+        <input type="text" value="3 次" disabled>
+        <div class="hint">固化值，需连续 3 次命中才真正切换</div>
       </div>
     </div>
     <div class="check">
@@ -162,6 +165,38 @@
       <button class="primary" onclick="save(false)">保存</button>
       <button onclick="save(true)">保存并重启服务</button>
       <button onclick="load()">重新读取</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>屏幕显示逻辑 <small>每 950 ms 采样一次，按负载自动切换模式</small></h2>
+    <div class="row">
+      <div class="stat">
+        <div class="k">1 行 · 空闲</div>
+        <div class="v" style="font-size:13px">居中显示 IP</div>
+        <div class="hint">CPU、温度、网速均未超过阈值</div>
+      </div>
+      <div class="stat">
+        <div class="k">2 行 · CPU 高负载</div>
+        <div class="v" style="font-size:13px">CPU: xx% xx°C / IP</div>
+        <div class="hint">CPU 或 温度 超过阈值，流量不高</div>
+      </div>
+      <div class="stat">
+        <div class="k">2 行 · 网络高负载</div>
+        <div class="v" style="font-size:13px">NET: ↓xx ↑xx / IP</div>
+        <div class="hint">RX 或 TX 超过阈值，CPU/温度正常</div>
+      </div>
+      <div class="stat">
+        <div class="k">3 行 · 双重高负载</div>
+        <div class="v" style="font-size:13px">CPU / NET / IP</div>
+        <div class="hint">CPU 或温度 与 流量 同时超阈值</div>
+      </div>
+    </div>
+    <div class="hint" style="margin-top:12px;line-height:1.8">
+      · 判断依据：<b>CPU 占用 &gt; CPU 阈值</b> 或 <b>温度 &gt; 温度阈值</b> 视为 CPU 高负载；<b>RX 或 TX &gt; 网速阈值</b> 视为网络高负载。<br>
+      · 阈值即上方三项可调参数；调整后约 1 秒内生效，无需重启服务。<br>
+      · 防抖：新模式需连续 3 次采样都命中才切换，条件消失后立即回落到空闲模式，避免屏幕频繁闪烁。<br>
+      · 平滑：网速采用 EMA（α=0.30）平滑，CPU 与温度取 1 秒粒度实时值；IP 每 5 次采样刷新一次，网络中断时保留上次地址。
     </div>
   </div>
 
@@ -187,7 +222,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const FIELDS = ["cpu_high_threshold","temp_high_threshold","net_high_threshold","ema_alpha","refresh_ms","hysteresis","silent"];
+const FIELDS = ["cpu_high_threshold","temp_high_threshold","net_high_threshold","silent"];
 const $ = id => document.getElementById(id);
 
 function toast(msg, kind = "ok") {
@@ -237,9 +272,6 @@ function collect() {
   c.cpu_high_threshold = Number($("cpu_high_threshold").value);
   c.temp_high_threshold = Number($("temp_high_threshold").value);
   c.net_high_threshold = Number($("net_high_threshold").value);
-  c.ema_alpha = Number($("ema_alpha").value);
-  c.refresh_ms = Number($("refresh_ms").value);
-  c.hysteresis = Number($("hysteresis").value);
   c.silent = $("silent").checked;
   return c;
 }

@@ -88,16 +88,21 @@ Defaults reproduce the historical behaviour:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `i2c_bus` | `3` | I2C bus of the panel (restart required) |
-| `address` | `0x3c` (60) | SSD1306 address (restart required) |
-| `width` / `height` | `128` / `32` | Panel geometry (fixed by the hardware) |
 | `cpu_high_threshold` | `30` | CPU % above which the CPU mode is shown |
 | `temp_high_threshold` | `60` | SoC °C above which the CPU mode is shown |
 | `net_high_threshold` | `100` | KB/s above which the NET mode is shown |
-| `ema_alpha` | `0.3` | Smoothing factor for network speed |
-| `refresh_ms` | `950` | Redraw interval in milliseconds |
-| `hysteresis` | `3` | Consecutive hits needed before switching mode |
 | `silent` | `false` | Discard log output |
+
+Fixed in code (shown read-only in the web UI, any value in the file is ignored):
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `I2C_BUS` | `3` | I2C bus of the panel |
+| `DEVICE_ADDR` | `0x3c` | SSD1306 address |
+| `WIDTH` / `HEIGHT` | `128` / `32` | Panel geometry |
+| `EMA_ALPHA` | `0.3` | Smoothing factor for network speed |
+| `REFRESH_MS` | `950` | Redraw interval in milliseconds |
+| `HYSTERESIS` | `3` | Consecutive hits needed before switching mode |
 
 ## iNextOS app (web configuration UI)
 

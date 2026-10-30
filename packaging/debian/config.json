@@ -1,13 +1,8 @@
 {
-  "i2c_bus": 3,
-  "address": 60,
   "width": 128,
   "height": 32,
   "cpu_high_threshold": 30,
   "temp_high_threshold": 60,
   "net_high_threshold": 100,
-  "ema_alpha": 0.3,
-  "refresh_ms": 950,
-  "hysteresis": 3,
   "silent": false
 }

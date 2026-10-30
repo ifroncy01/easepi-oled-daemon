@@ -31,31 +31,25 @@ const (
 )
 
 // Config is the on-disk schema shared with the oled daemon (see config.go in
-// the repository root). Keep the JSON tags in sync. The I2C bus and device
-// address are hardware constants and are not part of this schema.
+// the repository root). Keep the JSON tags in sync. The I2C bus/address and the
+// timing constants are hardware/firmware values and are not part of this schema.
 type Config struct {
-	Width      int     `json:"width"`
-	Height     int     `json:"height"`
-	CPUHigh    float64 `json:"cpu_high_threshold"`
-	TempHigh   int     `json:"temp_high_threshold"`
-	NetHigh    float64 `json:"net_high_threshold"`
-	EmaAlpha   float64 `json:"ema_alpha"`
-	RefreshMS  int     `json:"refresh_ms"`
-	Hysteresis int     `json:"hysteresis"`
-	Silent     bool    `json:"silent"`
+	Width    int     `json:"width"`
+	Height   int     `json:"height"`
+	CPUHigh  float64 `json:"cpu_high_threshold"`
+	TempHigh int     `json:"temp_high_threshold"`
+	NetHigh  float64 `json:"net_high_threshold"`
+	Silent   bool    `json:"silent"`
 }
 
 func defaultConfig() Config {
 	return Config{
-		Width:      128,
-		Height:     32,
-		CPUHigh:    30,
-		TempHigh:   60,
-		NetHigh:    100,
-		EmaAlpha:   0.3,
-		RefreshMS:  950,
-		Hysteresis: 3,
-		Silent:     false,
+		Width:    128,
+		Height:   32,
+		CPUHigh:  30,
+		TempHigh: 60,
+		NetHigh:  100,
+		Silent:   false,
 	}
 }
 
@@ -87,15 +81,6 @@ func (c *Config) normalize() {
 	if c.NetHigh < 1 || c.NetHigh > 100000 {
 		c.NetHigh = 100
 	}
-	if c.EmaAlpha <= 0 || c.EmaAlpha >= 1 {
-		c.EmaAlpha = 0.3
-	}
-	if c.RefreshMS < 200 || c.RefreshMS > 5000 {
-		c.RefreshMS = 950
-	}
-	if c.Hysteresis < 1 || c.Hysteresis > 20 {
-		c.Hysteresis = 3
-	}
 }
 
 func (c Config) validate() []string {
@@ -108,15 +93,6 @@ func (c Config) validate() []string {
 	}
 	if c.NetHigh < 1 || c.NetHigh > 100000 {
 		errs = append(errs, "net_high_threshold 必须在 1-100000 之间")
-	}
-	if c.EmaAlpha <= 0 || c.EmaAlpha >= 1 {
-		errs = append(errs, "ema_alpha 必须在 0-1 之间（不含端点）")
-	}
-	if c.RefreshMS < 200 || c.RefreshMS > 5000 {
-		errs = append(errs, "refresh_ms 必须在 200-5000 之间")
-	}
-	if c.Hysteresis < 1 || c.Hysteresis > 20 {
-		errs = append(errs, "hysteresis 必须在 1-20 之间")
 	}
 	return errs
 }
@@ -248,8 +224,8 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 			}
 			msg = "配置已保存，服务已重启"
 		}
-		log.Printf("config updated (restart=%v): cpu=%.0f temp=%d net=%.0f alpha=%.2f",
-			req.Restart, req.Config.CPUHigh, req.Config.TempHigh, req.Config.NetHigh, req.Config.EmaAlpha)
+		log.Printf("config updated (restart=%v): cpu=%.0f temp=%d net=%.0f",
+			req.Restart, req.Config.CPUHigh, req.Config.TempHigh, req.Config.NetHigh)
 		writeJSON(w, http.StatusOK, map[string]any{"message": msg, "config": req.Config})
 	default:
 		w.Header().Set("Allow", "GET, POST, PUT")

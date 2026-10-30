@@ -87,16 +87,21 @@ sudo systemctl restart oled.service
 
 | 键 | 默认值 | 含义 |
 |---|---|---|
-| `i2c_bus` | `3` | 面板所在 I2C 总线（修改需重启服务） |
-| `address` | `0x3c`（60） | SSD1306 地址（修改需重启服务） |
-| `width` / `height` | `128` / `32` | 面板分辨率（硬件固定） |
 | `cpu_high_threshold` | `30` | CPU 占用超过该值（%）时进入 CPU 模式 |
 | `temp_high_threshold` | `60` | 温度超过该值（°C）时进入 CPU 模式 |
 | `net_high_threshold` | `100` | 网速超过该值（KB/s）时进入 NET 模式 |
-| `ema_alpha` | `0.3` | 网速平滑系数 |
-| `refresh_ms` | `950` | 刷新间隔（毫秒） |
-| `hysteresis` | `3` | 模式切换防抖次数 |
 | `silent` | `false` | 不输出日志 |
+
+以下参数固化在代码中（网页端只读展示，配置文件中即使写入也会被忽略）：
+
+| 常量 | 值 | 含义 |
+|---|---|---|
+| `I2C_BUS` | `3` | 面板所在 I2C 总线 |
+| `DEVICE_ADDR` | `0x3c` | SSD1306 设备地址 |
+| `WIDTH` / `HEIGHT` | `128` / `32` | 面板分辨率 |
+| `EMA_ALPHA` | `0.3` | 网速平滑系数 |
+| `REFRESH_MS` | `950` | 刷新间隔（毫秒） |
+| `HYSTERESIS` | `3` | 模式切换防抖次数 |
 
 ## iNextOS 应用（网页配置界面）
 
