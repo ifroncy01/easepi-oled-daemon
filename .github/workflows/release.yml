@@ -54,14 +54,20 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           rm -rf appbundle && mkdir -p appbundle
-          install -m 0755 oled-web-linux-arm64 appbundle/oled-web
           install -m 0755 app/install.sh app/uninstall.sh appbundle/
           install -m 0755 app/register.py appbundle/register.py
-          install -m 0644 packaging/oled-web.service appbundle/
           install -m 0644 cmd/oledweb/ui/icon.svg appbundle/
           cp "easepi-oled-daemon_${VERSION}_arm64.deb" appbundle/
           tar -C appbundle -czf "easepi-oled-app_${VERSION}_arm64.tar.gz" .
           sha256sum "easepi-oled-app_${VERSION}_arm64.tar.gz" > "easepi-oled-app_${VERSION}_arm64.tar.gz.sha256"
+
+      - name: Build store submission draft
+        env:
+          VERSION: ${{ github.ref_name }}
+          OUT: ${{ github.workspace }}
+        run: |
+          chmod +x packaging/build-store.sh
+          packaging/build-store.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -74,8 +80,11 @@ jobs:
             oled-web-linux-arm64.sha256
             *.deb
             *.deb.sha256
+            *.filelist.txt
             easepi-oled-app_*.tar.gz
             easepi-oled-app_*.tar.gz.sha256
+            easepi-oled-store_*.tar.gz
+            easepi-oled-store_*.tar.gz.sha256
 
   release:
     needs: build
@@ -99,6 +108,9 @@ jobs:
             oled-web-linux-arm64.sha256
             *.deb
             *.deb.sha256
+            *.filelist.txt
             easepi-oled-app_*.tar.gz
             easepi-oled-app_*.tar.gz.sha256
+            easepi-oled-store_*.tar.gz
+            easepi-oled-store_*.tar.gz.sha256
           generate_release_notes: true
