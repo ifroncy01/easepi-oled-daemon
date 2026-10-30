@@ -3,6 +3,8 @@
 SSD1306 OLED display daemon for EasePi-A2 (RK3568) IoT gateway.  
 Displays system status (CPU, temperature, network, IP) on a 128x32 I2C OLED screen.
 
+English | [简体中文](README.zh-CN.md)
+
 ## Features
 
 - **Multi-mode display**: idle (1-line IP), CPU (2-line), NET (2-line), heavy load (3-line)
