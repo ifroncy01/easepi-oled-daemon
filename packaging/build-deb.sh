@@ -41,11 +41,12 @@ mkdir -p "$stage/DEBIAN" \
          "$stage/usr/local/oled" \
          "$stage/usr/lib/systemd/system" \
          "$stage/etc/systemd/system/oled.service.d" \
+         "$stage/etc/oled" \
          "$stage/usr/share/doc/${PKG}"
 
 # 1. Static binary
 ( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
-    go build -trimpath -ldflags="-s -w" -o "$stage/usr/local/oled/oled" main.go )
+    go build -trimpath -ldflags="-s -w" -o "$stage/usr/local/oled/oled" . )
 chmod 0755 "$stage/usr/local/oled/oled"
 
 # 2. Bundled font so the package works offline without fonts-dejavu-core
@@ -57,12 +58,15 @@ install -m 0644 "$ROOT/packaging/oled.service" \
 install -m 0644 "$ROOT/packaging/debian/oled-local.conf" \
     "$stage/etc/systemd/system/oled.service.d/10-easepi-a2.conf"
 
-# 4. Documentation
+# 4. Default runtime configuration (conffile: edited values survive upgrades)
+install -m 0644 "$ROOT/packaging/debian/config.json" "$stage/etc/oled/config.json"
+
+# 5. Documentation
 install -m 0644 "$ROOT/packaging/debian/copyright" \
     "$stage/usr/share/doc/${PKG}/copyright"
 install -m 0644 "$ROOT/README.md" "$stage/usr/share/doc/${PKG}/README.md"
 
-# 5. Control file, maintainer scripts and conffiles
+# 6. Control file, maintainer scripts and conffiles
 size="$(du -sk "$stage/usr" "$stage/etc" | awk '{sum += $1} END {print sum}')"
 sed -e "s/@VERSION@/${VERSION}/g" \
     -e "s/@SIZE@/${size}/g" \
@@ -72,15 +76,16 @@ install -m 0755 "$ROOT/packaging/debian/postinst" "$stage/DEBIAN/postinst"
 install -m 0755 "$ROOT/packaging/debian/prerm" "$stage/DEBIAN/prerm"
 install -m 0755 "$ROOT/packaging/debian/postrm" "$stage/DEBIAN/postrm"
 
-# Local override drop-in is a conffile: local edits survive upgrades.
+# Local override drop-in and runtime config are conffiles: local edits survive
+# package and system upgrades.
 printf '%s\n' "/etc/systemd/system/oled.service.d/10-easepi-a2.conf" \
-    > "$stage/DEBIAN/conffiles"
+    "/etc/oled/config.json" > "$stage/DEBIAN/conffiles"
 
-# 6. Checksums so dpkg -V / dpkg --verify can validate installed files
+# 7. Checksums so dpkg -V / dpkg --verify can validate installed files
 ( cd "$stage" && find . -type f ! -path './DEBIAN/*' -printf '%P\n' \
     | sort | xargs -r md5sum ) > "$stage/DEBIAN/md5sums"
 
-# 7. Assemble the package
+# 8. Assemble the package
 mkdir -p "$OUT"
 out="$OUT/${PKG}_${VERSION}_${ARCH}.deb"
 dpkg-deb --root-owner-group --build "$stage" "$out" >/dev/null

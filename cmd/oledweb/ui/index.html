@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OLED 显示 - EasePi A2</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --card-2: #1e232c;
+    --line: #2a303b;
+    --text: #e6e9ef;
+    --muted: #8b95a5;
+    --accent: #4c8dff;
+    --ok: #35c27b;
+    --warn: #e8a33d;
+    --err: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.55 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  header h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; background: var(--muted); }
+  .dot.ok { background: var(--ok); }
+  .dot.err { background: var(--err); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat .k { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .stat .v { font-size: 16px; font-weight: 600; word-break: break-all; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card h2 small { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input[type=number], input[type=text] {
+    width: 100%; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card-2); color: var(--text); font-size: 14px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--text); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button {
+    padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card-2); color: var(--text); font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: #ffb4ae; border-color: #4a2a29; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  pre {
+    margin: 0; padding: 12px; max-height: 320px; overflow: auto;
+    background: #0b0d11; border: 1px solid var(--line); border-radius: 8px;
+    color: #c9d1d9; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  .toast {
+    position: fixed; right: 20px; bottom: 20px; max-width: 420px;
+    padding: 12px 16px; border-radius: 10px; font-size: 13px;
+    background: #232a35; border: 1px solid var(--line); color: var(--text);
+    opacity: 0; transform: translateY(8px); transition: .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.ok { border-color: var(--ok); }
+  .toast.err { border-color: var(--err); }
+  select {
+    padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card-2); color: var(--text);
+  }
+  .flexline { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>OLED 显示</h1>
+    <span class="sub">EasePi A2 · SSD1306 128×32 · I2C</span>
+  </header>
+
+  <div class="grid">
+    <div class="stat"><div class="k">服务状态</div><div class="v" id="stService">-</div></div>
+    <div class="stat"><div class="k">开机自启</div><div class="v" id="stEnabled">-</div></div>
+    <div class="stat"><div class="k">面板设备</div><div class="v" id="stPanel">-</div></div>
+    <div class="stat"><div class="k">总线 / 地址</div><div class="v" id="stBus">-</div></div>
+    <div class="stat"><div class="k">进程 PID</div><div class="v" id="stPid">-</div></div>
+    <div class="stat"><div class="k">运行起始</div><div class="v" id="stSince" style="font-size:13px">-</div></div>
+  </div>
+
+  <div class="card">
+    <h2>服务控制</h2>
+    <div class="actions" style="margin-top:0">
+      <button onclick="svc('start')">启动</button>
+      <button onclick="svc('restart')" class="primary">重启</button>
+      <button onclick="svc('stop')" class="danger">停止</button>
+      <button onclick="svc('enable')">开启开机自启</button>
+      <button onclick="svc('disable')">关闭开机自启</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>显示参数 <small>保存后无需重启，守护进程会在 1 秒内热加载</small></h2>
+    <div class="row">
+      <div>
+        <label>I2C 总线</label>
+        <input type="number" id="i2c_bus" min="0" max="9" step="1">
+        <div class="hint">A2 出厂为 3（对应 /dev/i2c-3），修改后需重启服务</div>
+      </div>
+      <div>
+        <label>设备地址</label>
+        <input type="text" id="address" placeholder="0x3c">
+        <div class="hint">SSD1306 常见为 0x3C 或 0x3D</div>
+      </div>
+      <div>
+        <label>分辨率</label>
+        <input type="text" id="resolution" value="128 × 32" disabled>
+        <div class="hint">由硬件固定，不可修改</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div>
+        <label>CPU 高负载阈值（%）</label>
+        <input type="number" id="cpu_high_threshold" min="1" max="100" step="1">
+      </div>
+      <div>
+        <label>温度高负载阈值（°C）</label>
+        <input type="number" id="temp_high_threshold" min="30" max="110" step="1">
+      </div>
+      <div>
+        <label>网速高负载阈值（KB/s）</label>
+        <input type="number" id="net_high_threshold" min="1" max="100000" step="1">
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div>
+        <label>网速平滑系数</label>
+        <input type="number" id="ema_alpha" min="0.05" max="0.95" step="0.05">
+        <div class="hint">越大越灵敏，越小越平稳</div>
+      </div>
+      <div>
+        <label>刷新间隔（ms）</label>
+        <input type="number" id="refresh_ms" min="200" max="5000" step="50">
+        <div class="hint">建议 800-1200</div>
+      </div>
+      <div>
+        <label>模式切换防抖次数</label>
+        <input type="number" id="hysteresis" min="1" max="20" step="1">
+        <div class="hint">连续命中阈值 N 次后才切换，避免闪烁</div>
+      </div>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="silent">
+      <label for="silent" style="margin:0;color:var(--text);font-size:13px">静默模式（不写日志）</label>
+    </div>
+    <div class="actions">
+      <button class="primary" onclick="save(false)">保存</button>
+      <button onclick="save(true)">保存并重启服务</button>
+      <button onclick="load()">重新读取</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>运行日志 <small>journalctl -u oled.service</small></h2>
+    <div class="flexline">
+      <div>
+        <select id="tail" onchange="logs()">
+          <option value="30">最近 30 行</option>
+          <option value="50" selected>最近 50 行</option>
+          <option value="100">最近 100 行</option>
+          <option value="200">最近 200 行</option>
+        </select>
+        <label class="check" style="display:inline-flex;margin:0 0 0 8px">
+          <input type="checkbox" id="autoLog"> 自动刷新
+        </label>
+      </div>
+      <button onclick="logs()">刷新</button>
+    </div>
+    <pre id="logBox">加载中...</pre>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const FIELDS = ["i2c_bus","address","cpu_high_threshold","temp_high_threshold","net_high_threshold","ema_alpha","refresh_ms","hysteresis","silent"];
+const $ = id => document.getElementById(id);
+
+function toast(msg, kind = "ok") {
+  const el = $("toast");
+  el.textContent = msg;
+  el.className = "toast show " + kind;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = "toast " + kind; }, 3200);
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+}
+
+function setStatus(s) {
+  $("stService").innerHTML = '<span class="dot ' + (s.service === "active" ? "ok" : "err") + '"></span>' + (s.service || "未知");
+  $("stEnabled").textContent = s.enabled === "enabled" ? "已启用" : (s.enabled || "未知");
+  $("stPanel").innerHTML = '<span class="dot ' + (s.panel_device ? "ok" : "err") + '"></span>' + (s.panel_device ? "/dev/i2c-" + s.bus : "未检测到");
+  $("stBus").textContent = "i2c-" + s.bus + " · 0x" + (s.address || 0).toString(16).toUpperCase();
+  $("stPid").textContent = s.pid && s.pid !== "0" ? s.pid : "未运行";
+  $("stSince").textContent = s.active_since && s.active_since !== "n/a" ? s.active_since : "-";
+}
+
+async function status() {
+  try { setStatus(await api("api/status")); } catch (e) { /* ignore */ }
+}
+
+async function load() {
+  try {
+    const d = await api("api/config");
+    const c = d.config;
+    for (const k of FIELDS) {
+      const el = $(k);
+      if (el.type === "checkbox") el.checked = !!c[k];
+      else if (k === "address") el.value = "0x" + Number(c[k]).toString(16).toUpperCase();
+      else el.value = c[k];
+    }
+    if (d.warning) toast(d.warning, "err");
+  } catch (e) { toast("读取配置失败: " + e.message, "err"); }
+}
+
+function collect() {
+  const c = {};
+  c.i2c_bus = Number($("i2c_bus").value);
+  const raw = $("address").value.trim().toLowerCase();
+  c.address = raw.startsWith("0x") ? parseInt(raw, 16) : parseInt(raw, 16);
+  c.width = 128; c.height = 32;
+  c.cpu_high_threshold = Number($("cpu_high_threshold").value);
+  c.temp_high_threshold = Number($("temp_high_threshold").value);
+  c.net_high_threshold = Number($("net_high_threshold").value);
+  c.ema_alpha = Number($("ema_alpha").value);
+  c.refresh_ms = Number($("refresh_ms").value);
+  c.hysteresis = Number($("hysteresis").value);
+  c.silent = $("silent").checked;
+  if (!Number.isFinite(c.address)) throw new Error("设备地址格式不正确，示例：0x3C");
+  return c;
+}
+
+async function save(restart) {
+  try {
+    const body = JSON.stringify({ config: collect(), restart: restart });
+    const d = await api("api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    toast(d.message);
+    await status(); await logs();
+  } catch (e) { toast("保存失败: " + e.message, "err"); }
+}
+
+async function svc(action) {
+  try {
+    const body = JSON.stringify({ action });
+    await api("api/service", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    toast("操作成功: " + action);
+    await status(); await logs();
+  } catch (e) { toast("操作失败: " + e.message, "err"); }
+}
+
+async function logs() {
+  try {
+    const d = await api("api/logs?tail=" + $("tail").value);
+    $("logBox").textContent = d.logs || "（无日志）";
+  } catch (e) { $("logBox").textContent = "读取日志失败: " + e.message; }
+}
+
+load(); status(); logs();
+setInterval(status, 5000);
+setInterval(() => { if ($("autoLog").checked) logs(); }, 5000);
+</script>
+</body>
+</html>

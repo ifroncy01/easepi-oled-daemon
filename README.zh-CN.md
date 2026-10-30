@@ -65,8 +65,8 @@ sudo dpkg -i easepi-oled-daemon_1.5.0_arm64.deb   # 或：sudo apt-get install .
 
 ```bash
 make deb                         # 仅 arm64，产物在 dist/（含 .sha256）
+make app                         # 守护进程 + 网页配置界面的 iNextOS 应用包
 VERSION=1.5.0 make deb           # 指定版本
-packaging/build-deb.sh           # 等价的直接调用方式
 ```
 
 ## 使用
@@ -78,6 +78,65 @@ sudo /usr/local/oled/oled
 # 管理已安装的服务
 sudo systemctl status oled.service
 sudo systemctl restart oled.service
+```
+
+## 运行时配置
+
+守护进程读取 `/etc/oled/config.json`（随包安装，登记为 conffile），并在一个轮询
+周期内热加载，修改无需重启。默认值与历史行为完全一致：
+
+| 键 | 默认值 | 含义 |
+|---|---|---|
+| `i2c_bus` | `3` | 面板所在 I2C 总线（修改需重启服务） |
+| `address` | `0x3c`（60） | SSD1306 地址（修改需重启服务） |
+| `width` / `height` | `128` / `32` | 面板分辨率（硬件固定） |
+| `cpu_high_threshold` | `30` | CPU 占用超过该值（%）时进入 CPU 模式 |
+| `temp_high_threshold` | `60` | 温度超过该值（°C）时进入 CPU 模式 |
+| `net_high_threshold` | `100` | 网速超过该值（KB/s）时进入 NET 模式 |
+| `ema_alpha` | `0.3` | 网速平滑系数 |
+| `refresh_ms` | `950` | 刷新间隔（毫秒） |
+| `hysteresis` | `3` | 模式切换防抖次数 |
+| `silent` | `false` | 不输出日志 |
+
+## iNextOS 应用（网页配置界面）
+
+`make app` 生成 `dist/easepi-oled-app_<version>_arm64.tar.gz`，这是一个自包含
+应用包：安装（或升级）守护进程、安装 `oled-web` 配置界面，并在 iNextOS 桌面
+生成应用图标。
+
+```bash
+scp dist/easepi-oled-app_1.6.0_arm64.tar.gz root@<设备IP>:/tmp/
+ssh root@<设备IP> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.0_arm64.tar.gz -C /tmp/oledapp && bash /tmp/oledapp/install.sh'
+```
+
+安装完成后，iNextOS 桌面出现 **OLED 显示** 图标，也可直接访问
+`http://<设备IP>:8099/`。
+
+安装脚本做的事：
+
+1. `dpkg -i` 安装随包的守护进程 deb（可升级，conffile 保留本地修改）
+2. 安装 `oled-web`（`/usr/local/oled/oled-web`）与 `oled-web.service`
+3. 按 iNextOS 对 docker 应用的方式注册：写入 `installed_apps`（`webapp_port=8099`）
+   与 `desktop_layouts` 桌面图标
+4. 清理历史上无效的 nginx 片段（平台并不 include 该目录）
+
+网页端提供状态面板、服务启停/重启、完整参数配置、实时 `journalctl` 日志，以及
+HTTP API：
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/status` | 服务状态、PID、面板是否在位 |
+| GET | `/api/config` | 读取当前配置 |
+| POST | `/api/config` | 保存配置（`{"config":{...},"restart":false}`） |
+| POST | `/api/service` | `{"action":"start\|stop\|restart\|enable\|disable"}` |
+| GET | `/api/logs?tail=50` | 守护进程日志尾部 |
+
+界面无登录鉴权，仅允许内网/链路本地源地址访问；请勿将 8099 端口映射到公网。
+
+卸载（保留守护进程，加 `--purge` 一并移除）：
+
+```bash
+ssh root@<设备IP> 'bash /tmp/oledapp/uninstall.sh'
 ```
 
 ## 验证
