@@ -101,6 +101,18 @@ if [ -f "$NGINX_CONF" ]; then
 fi
 
 if [ "$HAS_ROCEOS" -eq 1 ]; then
+    # Ship the uninstaller inside the app directory so a full purge can be run
+    # from the install path without the release bundle (SSH or a platform hook).
+    APP_DIR="/opt/roceos/apps/${APP_ID}"
+    if [ -f "$HERE/uninstall.sh" ] && [ -f "$HERE/register.py" ]; then
+        mkdir -p "$APP_DIR"
+        install -m 0755 "$HERE/uninstall.sh" "$APP_DIR/uninstall.sh"
+        install -m 0755 "$HERE/register.py" "$APP_DIR/register.py"
+        log "卸载脚本已落地：${APP_DIR}/uninstall.sh --purge"
+    else
+        warn "安装包内缺少 uninstall.sh/register.py，跳过卸载脚本落地"
+    fi
+
     log "注册到应用中心（installed_apps / desktop_layouts）"
     python3 "$HERE/register.py" --db "$ROCEOS_DB" --host "$IP" --port "$PORT" \
         --version "$VERSION" --icon-file "$HERE/icon.svg"

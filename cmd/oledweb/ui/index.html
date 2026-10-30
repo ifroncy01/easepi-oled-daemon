@@ -218,6 +218,17 @@
     </div>
     <pre id="logBox">加载中...</pre>
   </div>
+
+  <div class="card">
+    <h2>完整卸载</h2>
+    <div class="hint" style="line-height:1.8">
+      · 执行 `dpkg -P` 并调用应用目录内的卸载脚本：删除守护进程、网页服务、配置文件与 systemd 单元，并从 iNextOS 应用中心移除图标。<br>
+      · 卸载不可恢复；执行后本页面会立即失效，面板停止显示。
+    </div>
+    <div class="actions">
+      <button class="danger" onclick="uninstall()">完整卸载</button>
+    </div>
+  </div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -299,6 +310,18 @@ async function logs() {
     const d = await api("api/logs?tail=" + $("tail").value);
     $("logBox").textContent = d.logs || "（无日志）";
   } catch (e) { $("logBox").textContent = "读取日志失败: " + e.message; }
+}
+
+async function uninstall() {
+  if (!confirm("完整卸载会删除 OLED 守护进程、网页服务与全部配置，且不可恢复。是否继续？")) return;
+  const typed = prompt("请输入 UNINSTALL 以确认卸载：");
+  if (typed === null) return;
+  if (typed.trim().toUpperCase() !== "UNINSTALL") { toast("确认字不匹配，已取消", "err"); return; }
+  try {
+    const body = JSON.stringify({ confirm: "UNINSTALL" });
+    const d = await api("api/uninstall", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    toast(d.message, "err");
+  } catch (e) { toast("卸载失败: " + e.message, "err"); }
 }
 
 load(); status(); logs();

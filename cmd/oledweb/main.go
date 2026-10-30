@@ -24,6 +24,7 @@ var iconSVG []byte
 const (
 	configPath = "/etc/oled/config.json"
 	unitName   = "oled.service"
+	appDir     = "/opt/roceos/apps/oled"
 
 	// Fixed EasePi-A2 panel wiring; intentionally not configurable.
 	i2cBus  = 3
@@ -277,6 +278,52 @@ func handleLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"logs": logs(tail)})
 }
 
+// uninstallCommand returns the purge command. The app bundle installs an
+// uninstaller into the iNextOS app directory (it also unregisters the desktop
+// icon); standalone deb installs fall back to a plain dpkg purge.
+func uninstallCommand() string {
+	if _, err := os.Stat(appDir + "/uninstall.sh"); err == nil {
+		return "bash " + appDir + "/uninstall.sh --purge"
+	}
+	return "dpkg -P easepi-oled-daemon; " +
+		"rm -rf /usr/local/oled /etc/oled /etc/systemd/system/oled-web.service.d; " +
+		"rm -f /usr/lib/systemd/system/oled.service /usr/lib/systemd/system/oled-web.service; " +
+		"systemctl daemon-reload"
+}
+
+// handleUninstall runs the purge in a transient systemd unit. The handler
+// cannot run it inline: dpkg removes the oled-web binary and stops its unit,
+// which would kill the process before the response is flushed.
+func handleUninstall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "仅支持 POST"})
+		return
+	}
+	var req struct {
+		Confirm string `json:"confirm"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求体格式错误"})
+		return
+	}
+	if strings.ToUpper(strings.TrimSpace(req.Confirm)) != "UNINSTALL" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "确认字不匹配，请输入 UNINSTALL"})
+		return
+	}
+
+	cmd := exec.Command("systemd-run", "--unit=oled-uninstall", "--collect", "--no-block", "--quiet",
+		"/bin/sh", "-c", uninstallCommand())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": fmt.Sprintf("%v: %s", err, strings.TrimSpace(string(out)))})
+		return
+	}
+	log.Printf("uninstall requested from %s", r.RemoteAddr)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"message": "卸载任务已启动，服务与网页将在数秒内消失，配置文件与桌面图标一并清除",
+		"unit":    "oled-uninstall",
+	})
+}
+
 func main() {
 	port := flag.Int("port", 8099, "HTTP listen port")
 	bind := flag.String("bind", "127.0.0.1", "HTTP listen address")
@@ -308,6 +355,7 @@ func main() {
 	mux.HandleFunc("/api/config", handleConfig)
 	mux.HandleFunc("/api/service", handleService)
 	mux.HandleFunc("/api/logs", handleLogs)
+	mux.HandleFunc("/api/uninstall", handleUninstall)
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	})
