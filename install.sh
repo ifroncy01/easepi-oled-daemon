@@ -80,9 +80,14 @@ else
         [ -n "${VERSION}" ] || die "could not resolve latest release (set OLED_VERSION=1.5.0 or pass a local .deb)"
     fi
     VER_NUM="${VERSION#v}"
-    info "version: ${VERSION}"
+    # Accept both "1.6.4" and "v1.6.4"; release tags always carry the v prefix.
+    case "${VERSION}" in
+        v*) TAG="${VERSION}" ;;
+        *) TAG="v${VERSION}" ;;
+    esac
+    info "version: ${TAG}"
 
-    BASE="${OLED_MIRROR:-https://github.com/${REPO}/releases/download/${VERSION}}"
+    BASE="${OLED_MIRROR:-https://github.com/${REPO}/releases/download/${TAG}}"
 
     if [ "${MODE}" = "app" ]; then
         APP="easepi-oled-app_${VER_NUM}_${ARCH}.tar.gz"
