@@ -313,39 +313,64 @@ func getIP() string {
 	return "No Network"
 }
 
-func getCPUUsageTemp() (string, string) {
-	cpuUsage := "0%"
-	cpuTemp := "N/A"
+// cpuTicks returns the aggregate CPU counters from /proc/stat.
+func cpuTicks() (total, idle int, ok bool) {
 	data, err := os.ReadFile("/proc/stat")
-	if err == nil {
-		fields := strings.Fields(strings.SplitN(string(data), "\n", 2)[0])
-		if len(fields) >= 8 {
-			t1 := sumFields(fields[1:8])
-			i1, _ := strconv.Atoi(fields[4])
-			time.Sleep(50 * time.Millisecond)
-			data2, err2 := os.ReadFile("/proc/stat")
-			if err2 == nil {
-				fields2 := strings.Fields(strings.SplitN(string(data2), "\n", 2)[0])
-				if len(fields2) >= 8 {
-					t2 := sumFields(fields2[1:8])
-					i2, _ := strconv.Atoi(fields2[4])
-					diffT := t2 - t1
-					diffI := i2 - i1
-					if diffT > 0 {
-						cpuUsage = fmt.Sprintf("%d%%", 100-diffI*100/diffT)
-					}
-				}
-			}
+	if err != nil {
+		return 0, 0, false
+	}
+	fields := strings.Fields(strings.SplitN(string(data), "\n", 2)[0])
+	if len(fields) < 8 {
+		return 0, 0, false
+	}
+	idleTicks, err := strconv.Atoi(fields[4])
+	if err != nil {
+		return 0, 0, false
+	}
+	return sumFields(fields[1:8]), idleTicks, true
+}
+
+// cpuSampler averages utilisation over the interval between two refresh ticks.
+// Measuring a 50 ms slice made the value flap between 0% and 30%, so the mode
+// hysteresis never saw three consecutive samples above a low threshold and the
+// panel stayed on the one-line view.
+type cpuSampler struct {
+	prevTotal int
+	prevIdle  int
+	primed    bool
+}
+
+func (s *cpuSampler) sample() string {
+	total, idle, ok := cpuTicks()
+	if !ok {
+		return "0%"
+	}
+	if !s.primed {
+		s.primed = true
+		s.prevTotal, s.prevIdle = total, idle
+		time.Sleep(200 * time.Millisecond)
+		if total, idle, ok = cpuTicks(); !ok {
+			return "0%"
 		}
 	}
+	diffTotal := total - s.prevTotal
+	diffIdle := idle - s.prevIdle
+	s.prevTotal, s.prevIdle = total, idle
+	if diffTotal <= 0 {
+		return "0%"
+	}
+	return fmt.Sprintf("%.0f%%", float64(diffTotal-diffIdle)*100/float64(diffTotal))
+}
+
+func getCPUTemp() string {
 	tempData, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp")
 	if err == nil {
 		t := strings.TrimSpace(string(tempData))
 		if val, err := strconv.Atoi(t); err == nil {
-			cpuTemp = fmt.Sprintf("%d\u00b0C", val/1000)
+			return fmt.Sprintf("%d\u00b0C", val/1000)
 		}
 	}
-	return cpuUsage, cpuTemp
+	return "N/A"
 }
 
 func sumFields(fields []string) int {
@@ -500,6 +525,7 @@ func main() {
 	netmon := newNetMon()
 	cachedIP := getIP()
 	ipUpdateCount := 0
+	cpuTracker := &cpuSampler{}
 
 	currentMode := MODE_1_LINE
 	modeChangeCounter := 0
@@ -552,7 +578,8 @@ func main() {
 			ipUpdateCount = 0
 		}
 
-		cpuUsage, cpuTemp := getCPUUsageTemp()
+		cpuUsage := cpuTracker.sample()
+		cpuTemp := getCPUTemp()
 		rxSpeed, txSpeed := netmon.GetSpeed()
 
 		cpuPct := parseCPUPercent(cpuUsage)
