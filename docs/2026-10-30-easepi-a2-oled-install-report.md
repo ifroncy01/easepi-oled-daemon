@@ -259,7 +259,7 @@ info "architecture: ${ARCH}"
 # ------------------------------------------------------------------ local deb
 LOCAL_DEB="${OLED_LOCAL_DEB:-${1:-}}"
 if [ -z "${LOCAL_DEB}" ]; then
-    SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo .)"
+    SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo .)"
     LOCAL_DEB="$(ls -1 "${SELF_DIR}"/*_arm64.deb 2>/dev/null | head -n1 || true)"
 fi
 
