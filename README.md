@@ -64,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/ifroncy01/easepi-oled-daemon/oled-e
 
 | 变量 | 说明 |
 |---|---|
-| `OLED_VERSION` | 固定版本，如 `OLED_VERSION=1.6.3`；默认取最新 Release |
+| `OLED_VERSION` | 固定版本，如 `OLED_VERSION=1.6.6`；默认取最新 Release |
 | `OLED_MODE` | `auto` / `app` / `daemon` |
 | `OLED_MIRROR` | 备用下载基地址（如内网镜像 `file://`、`http://`） |
 | `OLED_LOCAL_DEB` | 指定本地 `.deb` 路径（也可作为第一个位置参数传入） |
@@ -73,20 +73,20 @@ curl -fsSL https://raw.githubusercontent.com/ifroncy01/easepi-oled-daemon/oled-e
 
 ```bash
 # 固定版本
-curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_VERSION=1.6.3 bash
+curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_VERSION=1.6.6 bash
 
 # 只装守护进程
 curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_MODE=daemon bash
 
 # 用本地 deb（离线或内网镜像）
-curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_LOCAL_DEB=/tmp/easepi-oled-daemon_1.6.3_arm64.deb bash
+curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_LOCAL_DEB=/tmp/easepi-oled-daemon_1.6.6_arm64.deb bash
 ```
 
 ### 离线安装（无外网设备推荐）
 
 ```bash
-scp dist/easepi-oled-daemon_1.6.3_arm64.deb root@<设备IP>:/tmp/
-ssh root@<设备IP> 'dpkg -i /tmp/easepi-oled-daemon_1.6.3_arm64.deb'
+scp dist/easepi-oled-daemon_1.6.6_arm64.deb root@<设备IP>:/tmp/
+ssh root@<设备IP> 'dpkg -i /tmp/easepi-oled-daemon_1.6.6_arm64.deb'
 ```
 
 仅 `dpkg -i` 即可完成：二进制静态编译、字体内置，无需 APT 依赖。也可把
@@ -115,7 +115,7 @@ ssh root@<设备IP> 'dpkg -i /tmp/easepi-oled-daemon_1.6.3_arm64.deb'
 make deb                 # 仅 arm64，产物在 dist/（含 .sha256 与 .filelist.txt）
 make app                 # 守护进程 + 网页配置的 iNextOS 应用包
 make store               # 商店上架草案包（manifest.json + filelist.txt + debs/）
-VERSION=1.6.4 make deb   # 指定版本
+VERSION=1.6.6 make deb   # 指定版本
 ```
 
 ## 运行与使用
@@ -167,19 +167,21 @@ sudo rm /etc/oled/config.json && sudo systemctl restart oled.service
 进程、`oled-web` 配置界面，并在 iNextOS 桌面生成「OLED 显示」图标。
 
 ```bash
-scp dist/easepi-oled-app_1.6.3_arm64.tar.gz root@<设备IP>:/tmp/
-ssh root@<设备IP> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.3_arm64.tar.gz -C /tmp/oledapp && bash /tmp/oledapp/install.sh'
+scp dist/easepi-oled-app_1.6.6_arm64.tar.gz root@<设备IP>:/tmp/
+ssh root@<设备IP> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.6_arm64.tar.gz -C /tmp/oledapp && bash /tmp/oledapp/install.sh'
 ```
 
 安装脚本依次：
 
 1. `dpkg -i` 安装随包的 deb（其中同时包含守护进程、`oled-web` 与两个 systemd 单元）
 2. 非默认端口时写入 `oled-web` 的 systemd drop-in（不改动包内单元）
-3. 按 iNextOS 的方式注册应用：写入 `installed_apps`（`webapp_port=8099`）与 `desktop_layouts` 桌面图标
-4. 清理历史上无效的 nginx 片段
+3. 把 `uninstall.sh` 与 `register.py` 复制到 `/opt/roceos/apps/oled`，供后续完整卸载
+4. 按 iNextOS 的方式注册应用：写入 `installed_apps`（`webapp_port=8099`）与 `desktop_layouts` 桌面图标
+5. 清理历史上无效的 nginx 片段
 
 安装完成后可点桌面图标，或直接访问 `http://<设备IP>:8099/`。网页端提供状态面板、
-服务启停/重启/自启、阈值配置、固化参数只读展示、屏幕显示逻辑说明与实时日志。
+服务启停/重启/自启、阈值配置、固化参数只读展示、屏幕显示逻辑说明、实时日志，以及
+页面底部的「完整卸载」按钮。
 
 HTTP API：
 
@@ -190,16 +192,25 @@ HTTP API：
 | POST | `/api/config` | 保存配置（`{"config":{...},"restart":false}`） |
 | POST | `/api/service` | `{"action":"start\|stop\|restart\|enable\|disable"}` |
 | GET | `/api/logs?tail=50` | 守护进程日志尾部 |
+| POST | `/api/uninstall` | 完整卸载（`dpkg -P` + 清理配置与图标），仅接受 POST |
 | GET | `/api/health` | 健康检查（安装脚本使用） |
 
 界面无登录鉴权，仅允许内网/链路本地来源访问；请勿将 8099 端口映射到公网。
 
-卸载（默认注销图标并禁用网页，保留守护进程；`--purge` 一并移除全部文件）：
+卸载有三种方式：
 
-```bash
-ssh root@<设备IP> 'bash /tmp/oledapp/uninstall.sh'
-ssh root@<设备IP> 'bash /tmp/oledapp/uninstall.sh --purge'
-```
+1. **网页端**：打开「OLED 显示」→ 页面底部「完整卸载」→ 确认一次即可。后台通过
+   独立 systemd 任务执行 `dpkg -P`、清理配置与单元，并注销应用中心图标。
+2. **应用目录脚本**（app 包安装后自动落地）：
+   ```bash
+   sudo bash /opt/roceos/apps/oled/uninstall.sh           # 停用网页、保留守护进程
+   sudo bash /opt/roceos/apps/oled/uninstall.sh --purge   # 完整卸载，零残留
+   ```
+3. **发行包内脚本**（设备上还没安装时使用）：
+   ```bash
+   bash /tmp/oledapp/uninstall.sh           # 停用网页、保留守护进程
+   bash /tmp/oledapp/uninstall.sh --purge   # 完整卸载，零残留
+   ```
 
 ## 商店上架草案包
 

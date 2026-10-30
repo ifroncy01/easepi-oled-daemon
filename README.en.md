@@ -65,27 +65,27 @@ Environment variables:
 
 | Variable | Meaning |
 |---|---|
-| `OLED_VERSION` | pin a release, e.g. `OLED_VERSION=1.6.3`; defaults to the latest |
+| `OLED_VERSION` | pin a release, e.g. `OLED_VERSION=1.6.6`; defaults to the latest |
 | `OLED_MODE` | `auto` / `app` / `daemon` |
 | `OLED_MIRROR` | alternate download base URL (internal mirror, `file://`, …) |
 | `OLED_LOCAL_DEB` | path to a local `.deb` (also accepted as the first positional argument) |
 
 ```bash
 # Pin a version
-curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_VERSION=1.6.3 bash
+curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_VERSION=1.6.6 bash
 
 # Daemon only
 curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_MODE=daemon bash
 
 # Local deb (offline or mirrored)
-curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_LOCAL_DEB=/tmp/easepi-oled-daemon_1.6.3_arm64.deb bash
+curl -fsSL .../oled-easepi-a2-inextos/install.sh | sudo OLED_LOCAL_DEB=/tmp/easepi-oled-daemon_1.6.6_arm64.deb bash
 ```
 
 ### Offline install (recommended for air-gapped devices)
 
 ```bash
-scp dist/easepi-oled-daemon_1.6.3_arm64.deb root@<device-ip>:/tmp/
-ssh root@<device-ip> 'dpkg -i /tmp/easepi-oled-daemon_1.6.3_arm64.deb'
+scp dist/easepi-oled-daemon_1.6.6_arm64.deb root@<device-ip>:/tmp/
+ssh root@<device-ip> 'dpkg -i /tmp/easepi-oled-daemon_1.6.6_arm64.deb'
 ```
 
 `dpkg -i` alone is enough: the binary is static and the font is bundled, so no
@@ -116,7 +116,7 @@ a store (or any other uninstaller) can remove them all.
 make deb                 # arm64 only, output in dist/ (+ .sha256 and .filelist.txt)
 make app                 # daemon + web UI bundle for iNextOS
 make store               # store submission draft (manifest + filelist + debs/)
-VERSION=1.6.4 make deb   # pin the version
+VERSION=1.6.6 make deb   # pin the version
 ```
 
 ## Usage
@@ -169,8 +169,8 @@ sudo rm /etc/oled/config.json && sudo systemctl restart oled.service
 bundle that installs the daemon, the `oled-web` UI and a desktop icon inside iNextOS.
 
 ```bash
-scp dist/easepi-oled-app_1.6.3_arm64.tar.gz root@<device-ip>:/tmp/
-ssh root@<device-ip> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.3_arm64.tar.gz -C /tmp/oledapp && bash /tmp/oledapp/install.sh'
+scp dist/easepi-oled-app_1.6.6_arm64.tar.gz root@<device-ip>:/tmp/
+ssh root@<device-ip> 'mkdir -p /tmp/oledapp && tar xzf /tmp/easepi-oled-app_1.6.6_arm64.tar.gz -C /tmp/oledapp && bash /tmp/oledapp/install.sh'
 ```
 
 The installer:
@@ -178,13 +178,16 @@ The installer:
 1. `dpkg -i` of the bundled package (it already contains the daemon, `oled-web`
    and both systemd units)
 2. writes an `oled-web` drop-in when a non-default port is requested
-3. registers the app the way iNextOS does for docker apps: an `installed_apps`
+3. copies `uninstall.sh` and `register.py` into `/opt/roceos/apps/oled` so a full
+   purge stays available after the bundle is gone
+4. registers the app the way iNextOS does for docker apps: an `installed_apps`
    row (`webapp_port=8099`) plus a `desktop_layouts` icon entry
-4. removes the legacy nginx snippet that iNextOS never included
+5. removes the legacy nginx snippet that iNextOS never included
 
 After install, open the desktop icon or `http://<device-ip>:8099/`. The UI provides
 a status dashboard, service start/stop/restart/enable, threshold settings, a
-read-only view of fixed constants, an explanation of the display logic and a live log.
+read-only view of fixed constants, an explanation of the display logic, a live log,
+and a "full uninstall" button at the bottom.
 
 HTTP API:
 
@@ -195,18 +198,27 @@ HTTP API:
 | POST | `/api/config` | save (`{"config":{...},"restart":false}`) |
 | POST | `/api/service` | `{"action":"start\|stop\|restart\|enable\|disable"}` |
 | GET | `/api/logs?tail=50` | daemon journal tail |
+| POST | `/api/uninstall` | full purge (`dpkg -P` + config/icon cleanup); POST only |
 | GET | `/api/health` | health check (used by the installer) |
 
 The UI is unauthenticated and restricted to private/link-local source addresses;
 do not port-forward 8099 to the internet.
 
-Uninstall (defaults to unregistering the icon and disabling the web UI while the
-panel daemon keeps running; `--purge` removes every file):
+Uninstall options:
 
-```bash
-ssh root@<device-ip> 'bash /tmp/oledapp/uninstall.sh'
-ssh root@<device-ip> 'bash /tmp/oledapp/uninstall.sh --purge'
-```
+1. **Web UI**: open "OLED 显示" → "full uninstall" at the bottom → confirm once.
+   The purge runs in its own transient systemd unit: `dpkg -P`, config/unit
+   cleanup and desktop icon deregistration.
+2. **App-directory script** (installed automatically by the app bundle):
+   ```bash
+   sudo bash /opt/roceos/apps/oled/uninstall.sh           # disable the web UI, keep the daemon
+   sudo bash /opt/roceos/apps/oled/uninstall.sh --purge   # full purge, zero leftovers
+   ```
+3. **Bundle script** (before anything is installed):
+   ```bash
+   bash /tmp/oledapp/uninstall.sh           # disable the web UI, keep the daemon
+   bash /tmp/oledapp/uninstall.sh --purge   # full purge, zero leftovers
+   ```
 
 ## Store submission draft
 
