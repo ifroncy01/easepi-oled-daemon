@@ -30,8 +30,17 @@ jobs:
           GOOS: linux
           GOARCH: arm64
         run: |
-          go build -trimpath -ldflags="-s -w" -o oled-linux-arm64 main.go
+          go build -trimpath -ldflags="-s -w" -o oled-linux-arm64 .
           sha256sum oled-linux-arm64 > oled-linux-arm64.sha256
+
+      - name: Build web UI binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -trimpath -ldflags="-s -w" -o oled-web-linux-arm64 ./cmd/oledweb
+          sha256sum oled-web-linux-arm64 > oled-web-linux-arm64.sha256
 
       - name: Build .deb package
         env:
@@ -41,6 +50,19 @@ jobs:
           chmod +x packaging/build-deb.sh
           packaging/build-deb.sh arm64
 
+      - name: Build iNextOS app bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          rm -rf appbundle && mkdir -p appbundle
+          install -m 0755 oled-web-linux-arm64 appbundle/oled-web
+          install -m 0755 app/install.sh app/uninstall.sh appbundle/
+          install -m 0755 app/register.py appbundle/register.py
+          install -m 0644 packaging/oled-web.service appbundle/
+          install -m 0644 cmd/oledweb/ui/icon.svg appbundle/
+          cp "easepi-oled-daemon_${VERSION}_arm64.deb" appbundle/
+          tar -C appbundle -czf "easepi-oled-app_${VERSION}_arm64.tar.gz" .
+          sha256sum "easepi-oled-app_${VERSION}_arm64.tar.gz" > "easepi-oled-app_${VERSION}_arm64.tar.gz.sha256"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -48,8 +70,12 @@ jobs:
           path: |
             oled-linux-arm64
             oled-linux-arm64.sha256
+            oled-web-linux-arm64
+            oled-web-linux-arm64.sha256
             *.deb
             *.deb.sha256
+            easepi-oled-app_*.tar.gz
+            easepi-oled-app_*.tar.gz.sha256
 
   release:
     needs: build
@@ -69,6 +95,10 @@ jobs:
           files: |
             oled-linux-arm64
             oled-linux-arm64.sha256
+            oled-web-linux-arm64
+            oled-web-linux-arm64.sha256
             *.deb
             *.deb.sha256
+            easepi-oled-app_*.tar.gz
+            easepi-oled-app_*.tar.gz.sha256
           generate_release_notes: true
