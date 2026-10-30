@@ -314,12 +314,8 @@ async function logs() {
 
 async function uninstall() {
   if (!confirm("完整卸载会删除 OLED 守护进程、网页服务与全部配置，且不可恢复。是否继续？")) return;
-  const typed = prompt("请输入 UNINSTALL 以确认卸载：");
-  if (typed === null) return;
-  if (typed.trim().toUpperCase() !== "UNINSTALL") { toast("确认字不匹配，已取消", "err"); return; }
   try {
-    const body = JSON.stringify({ confirm: "UNINSTALL" });
-    const d = await api("api/uninstall", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    const d = await api("api/uninstall", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     toast(d.message, "err");
   } catch (e) { toast("卸载失败: " + e.message, "err"); }
 }

@@ -299,17 +299,6 @@ func handleUninstall(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "仅支持 POST"})
 		return
 	}
-	var req struct {
-		Confirm string `json:"confirm"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "请求体格式错误"})
-		return
-	}
-	if strings.ToUpper(strings.TrimSpace(req.Confirm)) != "UNINSTALL" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "确认字不匹配，请输入 UNINSTALL"})
-		return
-	}
 
 	cmd := exec.Command("systemd-run", "--unit=oled-uninstall", "--collect", "--no-block", "--quiet",
 		"/bin/sh", "-c", uninstallCommand())
