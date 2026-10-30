@@ -6,8 +6,10 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload || true
 fi
 
+# Drop the local override drop-in directory left behind on purge.
 if [ "$1" = "purge" ]; then
     rm -rf /usr/local/oled
+    rmdir /etc/systemd/system/oled.service.d 2>/dev/null || true
 fi
 
 exit 0

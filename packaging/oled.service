@@ -1,5 +1,6 @@
 [Unit]
 Description=EasePi A2 OLED Display (Go)
+Documentation=https://github.com/ifroncy01/easepi-oled-daemon
 After=network.target systemd-modules-load.service
 StartLimitIntervalSec=0
 ConditionPathExists=/dev/i2c-3

@@ -68,6 +68,11 @@ func newSSD1306() (*SSD1306, error) {
 		fd.Close()
 		return nil, fmt.Errorf("ioctl I2C_SLAVE: %v", errno)
 	}
+	// Probe the panel directly with a display-off command; a missing device NAKs here.
+	if _, err := fd.Write([]byte{SSD1306_COMMAND, 0xAE}); err != nil {
+		fd.Close()
+		return nil, fmt.Errorf("no OLED response at 0x%02x on i2c-%d: %w", DEVICE_ADDR, I2C_BUS, err)
+	}
 	return &SSD1306{fd: fd}, nil
 }
 
@@ -441,11 +446,6 @@ func main() {
 		if _, err := os.Stat(fmt.Sprintf("/dev/i2c-%d", I2C_BUS)); err != nil {
 			logger.Fatalf("i2c-%d device not found", I2C_BUS)
 		}
-	}
-
-	out, _ := exec.Command("i2cdetect", "-y", "3").Output()
-	if !strings.Contains(string(out), "3c") && !strings.Contains(string(out), "3d") {
-		logger.Fatal("OLED device not found on i2c-3")
 	}
 
 	oled, err := newSSD1306()

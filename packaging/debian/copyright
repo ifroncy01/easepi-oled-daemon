@@ -1,0 +1,15 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: easepi-oled-daemon
+Upstream-Contact: ifroncy <ifroncy01@users.noreply.github.com>
+Source: https://github.com/ifroncy01/easepi-oled-daemon
+
+Files: *
+Copyright: 2026 ifroncy
+License: MIT
+
+Files: /usr/local/oled/DejaVuSansMono.ttf
+Copyright: 2003 Bitstream Inc. and respective authors
+License: Bitstream Vera Fonts Copyright
+ DejaVu changes are in public domain. The font is distributed under the
+ Bitstream Vera license, which permits redistribution and bundling with
+ software provided the font is not sold on its own.

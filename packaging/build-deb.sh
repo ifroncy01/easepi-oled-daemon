@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Build .deb packages for easepi-oled-daemon.
+# Build the .deb package for easepi-oled-daemon (EasePi-A2, arm64 only).
 #
 # Usage:
-#   packaging/build-deb.sh [arm64|amd64|all]
+#   packaging/build-deb.sh
 #
 # Environment:
 #   VERSION  override the package version (default: git describe, stripped of "v")
@@ -11,10 +11,16 @@
 #
 set -euo pipefail
 
-ARCH_ARG="${1:-all}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="easepi-oled-daemon"
+ARCH="arm64"
 OUT="${OUT:-$ROOT/dist}"
+
+# Folders that must never be copied into the package root.
+case "${1:-}" in
+    ""|arm64|all) ;;
+    *) echo "unsupported architecture: $1 (this package targets EasePi-A2 / arm64 only)" >&2; exit 1 ;;
+esac
 
 VERSION="${VERSION:-}"
 if [ -z "$VERSION" ]; then
@@ -23,51 +29,62 @@ fi
 VERSION="${VERSION:-1.0.0}"
 VERSION="${VERSION#v}"
 
-build_one() {
-    local arch="$1"
-    echo "==> building ${PKG} ${VERSION} for ${arch}"
+echo "==> building ${PKG} ${VERSION} for ${ARCH}"
 
-    local stage
-    stage="$(mktemp -d)"
-    trap 'rm -rf "$stage"' RETURN
+FONT_SRC="$ROOT/packaging/assets/DejaVuSansMono.ttf"
+[ -f "$FONT_SRC" ] || { echo "missing bundled font: $FONT_SRC" >&2; exit 1; }
 
-    mkdir -p "$stage/DEBIAN" \
-             "$stage/usr/local/oled" \
-             "$stage/etc/systemd/system"
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
 
-    # 1. Static binary
-    ( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
-        go build -trimpath -ldflags="-s -w" -o "$stage/usr/local/oled/oled" main.go )
-    chmod 0755 "$stage/usr/local/oled/oled"
+mkdir -p "$stage/DEBIAN" \
+         "$stage/usr/local/oled" \
+         "$stage/usr/lib/systemd/system" \
+         "$stage/etc/systemd/system/oled.service.d" \
+         "$stage/usr/share/doc/${PKG}"
 
-    # 2. systemd unit
-    install -m 0644 "$ROOT/packaging/oled.service" \
-        "$stage/etc/systemd/system/oled.service"
+# 1. Static binary
+( cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" \
+    go build -trimpath -ldflags="-s -w" -o "$stage/usr/local/oled/oled" main.go )
+chmod 0755 "$stage/usr/local/oled/oled"
 
-    # 3. control file + maintainer scripts
-    local size
-    size="$(du -sk "$stage" | awk '{print $1}')"
-    sed -e "s/@VERSION@/${VERSION}/g" \
-        -e "s/@ARCH@/${arch}/g" \
-        -e "s/@SIZE@/${size}/g" \
-        "$ROOT/packaging/debian/control" > "$stage/DEBIAN/control"
+# 2. Bundled font so the package works offline without fonts-dejavu-core
+install -m 0644 "$FONT_SRC" "$stage/usr/local/oled/DejaVuSansMono.ttf"
 
-    local script
-    for script in postinst prerm postrm; do
-        install -m 0755 "$ROOT/packaging/debian/$script" "$stage/DEBIAN/$script"
-    done
+# 3. Vendor systemd unit plus an upgrade-safe local override drop-in
+install -m 0644 "$ROOT/packaging/oled.service" \
+    "$stage/usr/lib/systemd/system/oled.service"
+install -m 0644 "$ROOT/packaging/debian/oled-local.conf" \
+    "$stage/etc/systemd/system/oled.service.d/10-easepi-a2.conf"
 
-    # 4. Assemble the package
-    mkdir -p "$OUT"
-    local out="$OUT/${PKG}_${VERSION}_${arch}.deb"
-    dpkg-deb --root-owner-group --build "$stage" "$out" >/dev/null
-    echo "    -> $out"
-}
+# 4. Documentation
+install -m 0644 "$ROOT/packaging/debian/copyright" \
+    "$stage/usr/share/doc/${PKG}/copyright"
+install -m 0644 "$ROOT/README.md" "$stage/usr/share/doc/${PKG}/README.md"
 
-case "$ARCH_ARG" in
-    all)         build_one arm64; build_one amd64 ;;
-    arm64|amd64) build_one "$ARCH_ARG" ;;
-    *)           echo "unknown architecture: $ARCH_ARG (use arm64|amd64|all)" >&2; exit 1 ;;
-esac
+# 5. Control file, maintainer scripts and conffiles
+size="$(du -sk "$stage/usr" "$stage/etc" | awk '{sum += $1} END {print sum}')"
+sed -e "s/@VERSION@/${VERSION}/g" \
+    -e "s/@SIZE@/${size}/g" \
+    "$ROOT/packaging/debian/control" > "$stage/DEBIAN/control"
 
+install -m 0755 "$ROOT/packaging/debian/postinst" "$stage/DEBIAN/postinst"
+install -m 0755 "$ROOT/packaging/debian/prerm" "$stage/DEBIAN/prerm"
+install -m 0755 "$ROOT/packaging/debian/postrm" "$stage/DEBIAN/postrm"
+
+# Local override drop-in is a conffile: local edits survive upgrades.
+printf '%s\n' "/etc/systemd/system/oled.service.d/10-easepi-a2.conf" \
+    > "$stage/DEBIAN/conffiles"
+
+# 6. Checksums so dpkg -V / dpkg --verify can validate installed files
+( cd "$stage" && find . -type f ! -path './DEBIAN/*' -printf '%P\n' \
+    | sort | xargs -r md5sum ) > "$stage/DEBIAN/md5sums"
+
+# 7. Assemble the package
+mkdir -p "$OUT"
+out="$OUT/${PKG}_${VERSION}_${ARCH}.deb"
+dpkg-deb --root-owner-group --build "$stage" "$out" >/dev/null
+( cd "$OUT" && sha256sum "$(basename "$out")" > "$(basename "$out").sha256" )
+echo "    -> $out"
+echo "    -> ${out}.sha256"
 echo "==> done"

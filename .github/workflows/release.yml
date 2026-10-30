@@ -12,9 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goarch: [arm64, amd64]
 
     steps:
       - name: Checkout
@@ -31,10 +28,10 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOOS: linux
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: arm64
         run: |
-          go build -trimpath -ldflags="-s -w" -o oled-linux-${{ matrix.goarch }} main.go
-          sha256sum oled-linux-${{ matrix.goarch }} > oled-linux-${{ matrix.goarch }}.sha256
+          go build -trimpath -ldflags="-s -w" -o oled-linux-arm64 main.go
+          sha256sum oled-linux-arm64 > oled-linux-arm64.sha256
 
       - name: Build .deb package
         env:
@@ -42,16 +39,17 @@ jobs:
           OUT: ${{ github.workspace }}
         run: |
           chmod +x packaging/build-deb.sh
-          packaging/build-deb.sh ${{ matrix.goarch }}
+          packaging/build-deb.sh arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oled-linux-${{ matrix.goarch }}
+          name: oled-linux-arm64
           path: |
-            oled-linux-${{ matrix.goarch }}
-            oled-linux-${{ matrix.goarch }}.sha256
+            oled-linux-arm64
+            oled-linux-arm64.sha256
             *.deb
+            *.deb.sha256
 
   release:
     needs: build
@@ -71,7 +69,6 @@ jobs:
           files: |
             oled-linux-arm64
             oled-linux-arm64.sha256
-            oled-linux-amd64
-            oled-linux-amd64.sha256
             *.deb
+            *.deb.sha256
           generate_release_notes: true

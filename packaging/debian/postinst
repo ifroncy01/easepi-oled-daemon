@@ -2,8 +2,16 @@
 # Post-installation script for easepi-oled-daemon.
 set -e
 
+# Remove the legacy unit shipped inside /etc by versions <= 1.4.0 so that the
+# vendor unit in /usr/lib/systemd/system takes precedence after the upgrade.
+if [ -f /etc/systemd/system/oled.service ]; then
+    systemctl disable oled.service >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/oled.service
+fi
+
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload || true
+    systemctl unmask oled.service >/dev/null 2>&1 || true
     systemctl enable oled.service || true
     # Starting may legitimately fail when the panel is absent; never abort.
     systemctl restart oled.service || true
